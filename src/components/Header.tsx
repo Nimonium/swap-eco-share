@@ -8,9 +8,11 @@ const Header = () => {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-success rounded-full flex items-center justify-center">
-              <div className="w-4 h-4 bg-background rounded-full"></div>
-            </div>
+            <img 
+              src="/lovable-uploads/d78455cc-27aa-43e6-8db5-4ecaf6148ba7.png" 
+              alt="EcoSwapSquare Logo" 
+              className="w-8 h-8"
+            />
             <span className="text-2xl font-bold text-primary">EcoSwapSquare</span>
           </div>
 
