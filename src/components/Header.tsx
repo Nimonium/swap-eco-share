@@ -16,10 +16,10 @@ const Header = () => {
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
-            <a href="#" className="text-foreground hover:text-primary transition-colors">Home</a>
-            <a href="#" className="text-foreground hover:text-primary transition-colors">Browse</a>
-            <a href="#" className="text-foreground hover:text-primary transition-colors">My Swaps</a>
-            <a href="#" className="text-foreground hover:text-primary transition-colors">About</a>
+            <a href="/" className="text-foreground hover:text-primary transition-colors">Home</a>
+            <a href="/browse" className="text-foreground hover:text-primary transition-colors">Browse</a>
+            <a href="/swap" className="text-foreground hover:text-primary transition-colors">My Swaps</a>
+            <a href="/about" className="text-foreground hover:text-primary transition-colors">About</a>
           </nav>
 
           {/* Actions */}
