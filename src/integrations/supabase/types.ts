@@ -7,14 +7,242 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
-  }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          id: string
+          full_name: string | null
+          avatar_url: string | null
+          city: string | null
+          bio: string | null
+          rating_avg: number | null
+          swap_count: number | null
+          created_at: string
+        }
+        Insert: {
+          id: string
+          full_name?: string | null
+          avatar_url?: string | null
+          city?: string | null
+          bio?: string | null
+          rating_avg?: number | null
+          swap_count?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          full_name?: string | null
+          avatar_url?: string | null
+          city?: string | null
+          bio?: string | null
+          rating_avg?: number | null
+          swap_count?: number | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      items: {
+        Row: {
+          id: string
+          owner_id: string
+          title: string
+          description: string
+          category: string
+          condition: string
+          price_value: number | null
+          exchange_preference: string | null
+          wanted_items: string[] | null
+          city: string | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          owner_id: string
+          title: string
+          description: string
+          category: string
+          condition: string
+          price_value?: number | null
+          exchange_preference?: string | null
+          wanted_items?: string[] | null
+          city?: string | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          owner_id?: string
+          title?: string
+          description?: string
+          category?: string
+          condition?: string
+          price_value?: number | null
+          exchange_preference?: string | null
+          wanted_items?: string[] | null
+          city?: string | null
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "items_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      item_media: {
+        Row: {
+          id: string
+          item_id: string
+          storage_path: string
+          media_type: string | null
+          angle_index: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          storage_path: string
+          media_type?: string | null
+          angle_index?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          storage_path?: string
+          media_type?: string | null
+          angle_index?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_media_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      swaps: {
+        Row: {
+          id: string
+          item_id: string
+          proposer_id: string
+          owner_id: string
+          offered_item_id: string | null
+          message: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          proposer_id: string
+          owner_id: string
+          offered_item_id?: string | null
+          message?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          proposer_id?: string
+          owner_id?: string
+          offered_item_id?: string | null
+          message?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "swaps_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swaps_offered_item_id_fkey"
+            columns: ["offered_item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swaps_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swaps_proposer_id_fkey"
+            columns: ["proposer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      consent_records: {
+        Row: {
+          id: string
+          item_id: string
+          user_id: string
+          signature_text: string
+          terms_version: string
+          user_agent: string | null
+          ip_address: string | null
+          signed_at: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          user_id: string
+          signature_text: string
+          terms_version?: string
+          user_agent?: string | null
+          ip_address?: string | null
+          signed_at?: string
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          user_id?: string
+          signature_text?: string
+          terms_version?: string
+          user_agent?: string | null
+          ip_address?: string | null
+          signed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_records_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_records_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -31,7 +259,7 @@ export type Database = {
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Database
 
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
@@ -130,26 +358,3 @@ export type Enums<
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
-
-export const Constants = {
-  public: {
-    Enums: {},
-  },
-} as const

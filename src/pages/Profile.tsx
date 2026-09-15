@@ -1,0 +1,563 @@
+import { useState, useEffect, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { getAvatarUrl, getMediaUrl, compressImage } from "@/lib/storage";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  User,
+  MapPin,
+  Calendar,
+  Star,
+  Package,
+  PlusCircle,
+  Edit3,
+  Upload,
+  Camera,
+  Loader2,
+  Repeat,
+  ExternalLink,
+  ShieldCheck,
+  CheckCircle2,
+  Clock,
+} from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+
+const Profile = () => {
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [city, setCity] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatarFile, setAvatarFile] = useState<Blob | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Auth Protection Guard
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to view your profile.",
+      });
+      navigate("/auth");
+    }
+  }, [authLoading, isAuthenticated, navigate, toast]);
+
+  // 1. Fetch User Profile
+  const {
+    data: profile,
+    isLoading: profileLoading,
+    error: profileError,
+  } = useQuery({
+    queryKey: ["profile", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // 2. Fetch User's Listed Items (all statuses)
+  const {
+    data: userItems = [],
+    isLoading: itemsLoading,
+  } = useQuery({
+    queryKey: ["my-items", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("items")
+        .select(
+          `
+          *,
+          item_media (*)
+        `
+        )
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Populate form fields when opening edit dialog
+  useEffect(() => {
+    if (profile) {
+      setFullName(profile.full_name || "");
+      setCity(profile.city || "");
+      setBio(profile.bio || "");
+    }
+  }, [profile, isEditDialogOpen]);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const compressed = await compressImage(file, 400);
+      setAvatarFile(compressed);
+      setAvatarPreview(URL.createObjectURL(compressed));
+    } catch (err) {
+      console.error("Failed to compress avatar image:", err);
+      toast({
+        title: "Image Error",
+        description: "Could not process avatar image. Please try another.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Profile Update Mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+
+      let updatedAvatarUrl = profile?.avatar_url || null;
+
+      // If user uploaded a new avatar, upload to 'avatars' bucket
+      if (avatarFile) {
+        const fileExt = "jpg";
+        const storagePath = `${user.id}/avatar_${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(storagePath, avatarFile, {
+            contentType: "image/jpeg",
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.warn("Avatar bucket upload error (falling back to direct path):", uploadError);
+          // If bucket doesn't exist yet, we still proceed with profile text update
+        } else {
+          updatedAvatarUrl = storagePath;
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName.trim() || null,
+          city: city.trim() || null,
+          bio: bio.trim() || null,
+          avatar_url: updatedAvatarUrl,
+        })
+        .eq("id", user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
+      toast({
+        title: "Profile Updated",
+        description: "Your profile information has been saved.",
+      });
+      setIsEditDialogOpen(false);
+      setAvatarFile(null);
+      setAvatarPreview(null);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Update Failed",
+        description: err.message || "Failed to update profile.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "published":
+        return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Published</Badge>;
+      case "draft":
+        return <Badge variant="secondary" className="bg-amber-500/20 text-amber-700 dark:text-amber-300">Draft</Badge>;
+      case "swapped":
+        return <Badge className="bg-blue-600 text-white hover:bg-blue-600">Swapped</Badge>;
+      case "removed":
+        return <Badge variant="outline" className="text-muted-foreground">Removed</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const renderRatingStars = (rating: number | null | undefined) => {
+    const num = Number(rating) || 0;
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`h-4 w-4 ${
+              star <= Math.round(num)
+                ? "text-amber-500 fill-amber-500"
+                : "text-muted-foreground/30"
+            }`}
+          />
+        ))}
+        <span className="text-xs font-semibold ml-1 text-foreground">
+          {num > 0 ? `${num.toFixed(1)} / 5.0` : "No ratings yet"}
+        </span>
+      </div>
+    );
+  };
+
+  if (authLoading || (profileLoading && !profile)) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  const currentAvatarUrl = avatarPreview || getAvatarUrl(profile?.avatar_url);
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <Header />
+
+      <main className="container mx-auto px-4 py-8 flex-1 max-w-5xl">
+        {/* Profile Card Header */}
+        <Card className="border-border shadow-sm mb-10 overflow-hidden">
+          <div className="h-32 bg-gradient-to-r from-primary/80 via-primary to-success/80 relative" />
+          
+          <CardContent className="relative pt-0 pb-8 px-6 sm:px-8">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between -mt-16 sm:-mt-14 mb-6 gap-4">
+              {/* Avatar */}
+              <div className="relative group">
+                <Avatar className="h-28 w-28 sm:h-32 sm:w-32 border-4 border-background shadow-md bg-muted">
+                  <AvatarImage src={currentAvatarUrl} alt={profile?.full_name || "User avatar"} className="object-cover" />
+                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-3xl">
+                    {profile?.full_name ? profile.full_name.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+
+              {/* Edit Profile Action Button */}
+              <Button
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(true)}
+                className="gap-2 self-start sm:self-auto shadow-sm"
+              >
+                <Edit3 className="h-4 w-4 text-primary" />
+                Edit Profile
+              </Button>
+            </div>
+
+            {/* Profile Info Details */}
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+                  {profile?.full_name || user?.user_metadata?.full_name || "Eco Swapper"}
+                </h1>
+                <p className="text-sm text-muted-foreground">{user?.email}</p>
+              </div>
+
+              {profile?.bio ? (
+                <p className="text-foreground text-sm max-w-2xl leading-relaxed whitespace-pre-line">
+                  {profile.bio}
+                </p>
+              ) : (
+                <p className="text-muted-foreground text-sm italic">
+                  No bio added yet. Tell the community what you like to swap!
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-y-2 gap-x-6 pt-2 text-sm text-muted-foreground border-t border-border">
+                {profile?.city && (
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span>{profile.city}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span>
+                    Joined {profile?.created_at ? format(new Date(profile.created_at), "MMMM yyyy") : "Recently"}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Repeat className="h-4 w-4 text-emerald-500" />
+                  <span className="font-medium text-foreground">{profile?.swap_count || 0}</span>
+                  <span>Completed Swaps</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {renderRatingStars(profile?.rating_avg)}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* User's Listed Items Section */}
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">My Listed Items</h2>
+              <p className="text-sm text-muted-foreground">
+                All items you have listed across EcoSwapSquare ({userItems.length})
+              </p>
+            </div>
+
+            <Link to="/list-item">
+              <Button variant="eco" className="gap-2 shadow-sm">
+                <PlusCircle className="h-4 w-4" />
+                List New Item
+              </Button>
+            </Link>
+          </div>
+
+          {itemsLoading ? (
+            <div className="py-16 flex flex-col items-center justify-center text-muted-foreground gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p>Loading your items...</p>
+            </div>
+          ) : userItems.length === 0 ? (
+            <Card className="border-dashed border-border">
+              <CardContent className="py-16 text-center space-y-4">
+                <Package className="h-12 w-12 text-muted-foreground mx-auto" />
+                <div>
+                  <h3 className="text-lg font-semibold mb-1">No items listed yet</h3>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                    Share pre-loved belongings with your community and start swapping today.
+                  </p>
+                </div>
+                <Link to="/list-item">
+                  <Button variant="eco" className="gap-2">
+                    <PlusCircle className="h-4 w-4" />
+                    List Your First Item
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {userItems.map((item: any) => {
+                const mediaList = item.item_media || [];
+                const firstMedia = mediaList.find((m: any) => m.media_type === "image" || !m.media_type);
+                const imageUrl = getMediaUrl(firstMedia?.storage_path);
+
+                return (
+                  <Card
+                    key={item.id}
+                    className="border-border hover:shadow-md transition-shadow overflow-hidden flex flex-col group cursor-pointer"
+                    onClick={() => navigate(`/item/${item.id}`)}
+                  >
+                    <div className="relative aspect-video w-full bg-muted overflow-hidden">
+                      <img
+                        src={imageUrl}
+                        alt={item.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
+                      <div className="absolute top-2 left-2">
+                        {getStatusBadge(item.status)}
+                      </div>
+                      <Badge className="absolute bottom-2 right-2 bg-black/70 text-white backdrop-blur-sm text-xs">
+                        {item.condition}
+                      </Badge>
+                    </div>
+
+                    <CardContent className="p-4 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="text-xs text-muted-foreground uppercase font-semibold">
+                            {item.category}
+                          </span>
+                          {item.price_value && (
+                            <span className="text-xs font-bold text-primary">
+                              ~${Number(item.price_value).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="font-semibold text-base line-clamp-1 group-hover:text-primary transition-colors">
+                          {item.title}
+                        </h3>
+
+                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                          {item.description}
+                        </p>
+                      </div>
+
+                      <div className="pt-4 mt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
+                        </span>
+
+                        <span className="text-primary font-medium flex items-center gap-1 hover:underline">
+                          Manage Item <ExternalLink className="h-3 w-3" />
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Edit3 className="h-5 w-5 text-primary" />
+              Edit Profile
+            </DialogTitle>
+            <DialogDescription>
+              Update your personal bio, location, and community avatar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-3">
+            {/* Avatar Upload Preview */}
+            <div className="flex items-center gap-4">
+              <Avatar className="h-20 w-20 border border-border shadow-sm">
+                <AvatarImage src={avatarPreview || getAvatarUrl(profile?.avatar_url)} className="object-cover" />
+                <AvatarFallback className="bg-primary/10 text-primary font-bold text-xl">
+                  {fullName ? fullName.charAt(0).toUpperCase() : "U"}
+                </AvatarFallback>
+              </Avatar>
+
+              <div className="space-y-1.5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-2"
+                >
+                  <Camera className="h-4 w-4" /> Change Avatar
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Compressed automatically (&lt; 500KB)
+                </p>
+              </div>
+            </div>
+
+            {/* Full Name */}
+            <div className="space-y-2">
+              <Label htmlFor="full_name" className="text-sm font-semibold">
+                Full Name
+              </Label>
+              <Input
+                id="full_name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="e.g. Alex Morgan"
+              />
+            </div>
+
+            {/* City */}
+            <div className="space-y-2">
+              <Label htmlFor="city" className="text-sm font-semibold">
+                City / Location
+              </Label>
+              <Input
+                id="city"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="e.g. San Francisco, CA"
+              />
+            </div>
+
+            {/* Bio */}
+            <div className="space-y-2">
+              <Label htmlFor="bio" className="text-sm font-semibold">
+                About Me (Bio)
+              </Label>
+              <Textarea
+                id="bio"
+                rows={3}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Share your interests, what you collect, or preferred trade items..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+              disabled={updateProfileMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="eco"
+              onClick={() => updateProfileMutation.mutate()}
+              disabled={updateProfileMutation.isPending}
+              className="gap-2"
+            >
+              {updateProfileMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Footer />
+    </div>
+  );
+};
+
+export default Profile;

@@ -8,9 +8,11 @@ const Footer = () => {
           {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-success rounded-full flex items-center justify-center">
-                <Leaf className="h-4 w-4 text-white" />
-              </div>
+              <img 
+                src="/logo-icon.png" 
+                alt="EcoSwapSquare" 
+                className="w-8 h-8 rounded-md object-contain" 
+              />
               <span className="text-2xl font-bold">EcoSwapSquare</span>
             </div>
             <p className="text-background/80 leading-relaxed">

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Users } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const CallToAction = () => {
   return (
@@ -29,10 +30,12 @@ const CallToAction = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-            <Button size="lg" variant="secondary" className="group text-lg px-8 py-6">
-              Sign Up Free
-              <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-            </Button>
+            <Link to="/auth">
+              <Button size="lg" variant="secondary" className="group text-lg px-8 py-6">
+                Sign Up Free
+                <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
             
             <div className="text-center sm:text-left">
               <p className="text-white/80 text-sm">No credit card required</p>

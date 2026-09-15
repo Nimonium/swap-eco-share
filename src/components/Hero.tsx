@@ -1,7 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Recycle } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Hero = () => {
+  const scrollToHowItWorks = () => {
+    const element = document.getElementById("how-it-works");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
     <section className="relative bg-gradient-to-br from-primary via-primary to-success text-primary-foreground py-20 overflow-hidden">
       {/* Background Pattern */}
@@ -33,11 +41,18 @@ const Hero = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button size="lg" variant="secondary" className="group">
-                Start Swapping
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-              <Button size="lg" variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+              <Link to="/browse">
+                <Button size="lg" variant="secondary" className="group w-full sm:w-auto">
+                  Start Swapping
+                  <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                onClick={scrollToHowItWorks}
+              >
                 How It Works
               </Button>
             </div>
