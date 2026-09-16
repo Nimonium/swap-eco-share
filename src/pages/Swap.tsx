@@ -23,7 +23,17 @@ import {
   ExternalLink,
   AlertTriangle,
   RotateCcw,
+  Star,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { formatDistanceToNow } from "date-fns";
@@ -34,6 +44,13 @@ const Swap = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Review Dialog State
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [selectedSwapForReview, setSelectedSwapForReview] = useState<any | null>(null);
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [reviewHoverRating, setReviewHoverRating] = useState<number>(0);
+  const [reviewComment, setReviewComment] = useState("");
 
   // Fetch real user swaps from Supabase
   const {
@@ -130,6 +147,81 @@ const Swap = () => {
       toast({
         title: "Update Failed",
         description: err.message || "Could not update swap status.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Fetch reviews submitted by the current user to identify completed swaps already reviewed
+  const { data: userReviews = [] } = useQuery({
+    queryKey: ["user-reviews-given", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("id, swap_id, rating, comment")
+        .eq("reviewer_id", user.id);
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch user reviews:", error);
+        throw error;
+      }
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Submit Review Mutation
+  const submitReviewMutation = useMutation({
+    mutationFn: async ({
+      swapId,
+      revieweeId,
+      rating,
+      comment,
+    }: {
+      swapId: string;
+      revieweeId: string;
+      rating: number;
+      comment: string;
+    }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase
+        .from("reviews")
+        .insert({
+          swap_id: swapId,
+          reviewer_id: user.id,
+          reviewee_id: revieweeId,
+          rating,
+          comment: comment.trim() || null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Review submission error:", error);
+        throw error;
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-reviews-given", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["my-swaps", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      toast({
+        title: "Review Submitted ✓",
+        description: "Thank you for rating your swap experience and building community trust!",
+      });
+      setIsReviewDialogOpen(false);
+      setSelectedSwapForReview(null);
+      setReviewRating(5);
+      setReviewComment("");
+    },
+    onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Failed to submit review:", err);
+      toast({
+        title: "Could Not Submit Review",
+        description: err.message || "Failed to submit review.",
         variant: "destructive",
       });
     },
@@ -266,6 +358,7 @@ const Swap = () => {
                   const isUserProposer = user?.id === swap.proposer_id;
                   const otherPerson = isUserOwner ? swap.proposer : swap.owner;
                   const roleLabel = isUserOwner ? "Incoming Proposal" : "Your Proposal";
+                  const hasReviewed = userReviews.some((r: any) => r.swap_id === swap.id);
 
                   const targetItem = swap.item;
                   const targetMedia = targetItem?.item_media?.[0];
@@ -457,6 +550,32 @@ const Swap = () => {
                             </Button>
                           )}
 
+                          {/* Leave Review or Review Submitted for Completed Swaps */}
+                          {swap.status === "completed" && (
+                            hasReviewed ? (
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <CheckCircle className="h-3.5 w-3.5" />
+                                <span>Review Submitted ✓</span>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 border-amber-500/40 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 dark:text-amber-400 font-medium shadow-sm"
+                                onClick={() => {
+                                  setSelectedSwapForReview(swap);
+                                  setReviewRating(5);
+                                  setReviewHoverRating(0);
+                                  setReviewComment("");
+                                  setIsReviewDialogOpen(true);
+                                }}
+                              >
+                                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                                <span>Leave a Review</span>
+                              </Button>
+                            )
+                          )}
+
                           <Button
                             variant="ghost"
                             size="sm"
@@ -482,6 +601,130 @@ const Swap = () => {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Leave Review Dialog */}
+        <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+                Rate Your Swap Experience
+              </DialogTitle>
+              <DialogDescription>
+                {selectedSwapForReview && (
+                  <span>
+                    Leave public feedback for{" "}
+                    <strong className="text-foreground">
+                      {(user?.id === selectedSwapForReview.owner_id
+                        ? selectedSwapForReview.proposer?.full_name
+                        : selectedSwapForReview.owner?.full_name) || "your swap partner"}
+                    </strong>.
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-5 py-3">
+              {/* Clickable 5-Star Rating Selector */}
+              <div className="space-y-2 text-center">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                  Overall Rating
+                </label>
+                <div className="flex items-center justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const activeRating = reviewHoverRating || reviewRating;
+                    const isFilled = star <= activeRating;
+                    return (
+                      <button
+                        key={star}
+                        type="button"
+                        className="p-1 rounded-md hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        onMouseEnter={() => setReviewHoverRating(star)}
+                        onMouseLeave={() => setReviewHoverRating(0)}
+                        onClick={() => setReviewRating(star)}
+                        aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                      >
+                        <Star
+                          className={`h-8 w-8 transition-colors ${
+                            isFilled
+                              ? "text-amber-500 fill-amber-500 drop-shadow-sm"
+                              : "text-muted-foreground/30 hover:text-amber-400/50"
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  {reviewRating === 5 && "5 Stars — Outstanding Swap Experience"}
+                  {reviewRating === 4 && "4 Stars — Very Good & Smooth Trade"}
+                  {reviewRating === 3 && "3 Stars — Good / Fair Trade"}
+                  {reviewRating === 2 && "2 Stars — Mediocre Experience"}
+                  {reviewRating === 1 && "1 Star — Poor Experience"}
+                </p>
+              </div>
+
+              {/* Optional Comment */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground block">
+                  Feedback Comment <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                </label>
+                <Textarea
+                  placeholder="How was the item condition? Friendly communication? Punctual exchange?"
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  className="min-h-[90px] resize-none"
+                  maxLength={500}
+                />
+                <p className="text-xs text-muted-foreground text-right">
+                  {reviewComment.length}/500
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsReviewDialogOpen(false)}
+                disabled={submitReviewMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="swap"
+                disabled={submitReviewMutation.isPending}
+                onClick={() => {
+                  if (!selectedSwapForReview) return;
+                  const revieweeId =
+                    user?.id === selectedSwapForReview.owner_id
+                      ? selectedSwapForReview.proposer_id
+                      : selectedSwapForReview.owner_id;
+                  submitReviewMutation.mutate({
+                    swapId: selectedSwapForReview.id,
+                    revieweeId,
+                    rating: reviewRating,
+                    comment: reviewComment,
+                  });
+                }}
+                className="gap-2"
+              >
+                {submitReviewMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Star className="h-4 w-4 fill-current" />
+                    Submit Review
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
 
       <Footer />

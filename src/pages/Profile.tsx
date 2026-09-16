@@ -118,6 +118,37 @@ const Profile = () => {
     enabled: !!user,
   });
 
+  // 3. Fetch User's Received Reviews
+  const { data: reviews = [], isLoading: reviewsLoading } = useQuery({
+    queryKey: ["profile-reviews", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("reviews")
+        .select(`
+          id,
+          rating,
+          comment,
+          created_at,
+          reviewer:profiles!reviews_reviewer_id_fkey (
+            id,
+            full_name,
+            avatar_url,
+            city
+          )
+        `)
+        .eq("reviewee_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch profile reviews:", error);
+        throw error;
+      }
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
   // Populate form fields when opening edit dialog
   useEffect(() => {
     if (profile) {
@@ -222,23 +253,30 @@ const Profile = () => {
     }
   };
 
-  const renderRatingStars = (rating: number | null | undefined) => {
+  const renderRatingStars = (rating: number | null | undefined, count?: number) => {
     const num = Number(rating) || 0;
     return (
-      <div className="flex items-center gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            key={star}
-            className={`h-4 w-4 ${
-              star <= Math.round(num)
-                ? "text-amber-500 fill-amber-500"
-                : "text-muted-foreground/30"
-            }`}
-          />
-        ))}
-        <span className="text-xs font-semibold ml-1 text-foreground">
+      <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <Star
+              key={star}
+              className={`h-4 w-4 ${
+                star <= Math.round(num)
+                  ? "text-amber-500 fill-amber-500"
+                  : "text-muted-foreground/30"
+              }`}
+            />
+          ))}
+        </div>
+        <span className="text-xs font-semibold text-foreground">
           {num > 0 ? `${num.toFixed(1)} / 5.0` : "No ratings yet"}
         </span>
+        {count !== undefined && count > 0 && (
+          <span className="text-xs text-muted-foreground font-normal">
+            ({count} {count === 1 ? "review" : "reviews"})
+          </span>
+        )}
       </div>
     );
   };
@@ -330,7 +368,7 @@ const Profile = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {renderRatingStars(profile?.rating_avg)}
+                  {renderRatingStars(profile?.rating_avg, reviews.length)}
                 </div>
               </div>
             </div>
@@ -440,6 +478,113 @@ const Profile = () => {
                           Manage Item <ExternalLink className="h-3 w-3" />
                         </span>
                       </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Reviews Received Section */}
+        <div className="space-y-6 pt-6 border-t border-border mt-10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                <Star className="h-6 w-6 text-amber-500 fill-amber-500" />
+                Community Reviews & Feedback
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Ratings and testimonials from your verified swap partners ({reviews.length})
+              </p>
+            </div>
+            {profile?.rating_avg && Number(profile.rating_avg) > 0 ? (
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm font-semibold self-start sm:self-auto">
+                <span>Overall Rating:</span>
+                <span>{Number(profile.rating_avg).toFixed(1)} / 5.0</span>
+              </div>
+            ) : null}
+          </div>
+
+          {reviewsLoading ? (
+            <div className="py-12 flex flex-col items-center justify-center text-muted-foreground gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p>Loading community reviews...</p>
+            </div>
+          ) : reviews.length === 0 ? (
+            <Card className="border-dashed border-border">
+              <CardContent className="py-12 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+                  <Star className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-semibold">No reviews received yet</h3>
+                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                  Once you complete swaps with other community members, their star ratings and feedback will appear here.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {reviews.map((rev: any) => {
+                const reviewer = rev.reviewer;
+                const reviewerAvatar = reviewer?.avatar_url
+                  ? getAvatarUrl(reviewer.avatar_url)
+                  : "";
+                const reviewerName = reviewer?.full_name || "Eco Swapper";
+
+                return (
+                  <Card key={rev.id} className="border-border bg-card shadow-sm">
+                    <CardContent className="p-5 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 border border-border">
+                            <AvatarImage src={reviewerAvatar} alt={reviewerName} />
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xs">
+                              {reviewerName.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground leading-tight">
+                              {reviewerName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {reviewer?.city || "Community Member"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className="text-xs text-muted-foreground flex-shrink-0">
+                          {formatDistanceToNow(new Date(rev.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+
+                      {/* Star Rating */}
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`h-4 w-4 ${
+                              star <= rev.rating
+                                ? "text-amber-500 fill-amber-500"
+                                : "text-muted-foreground/30"
+                            }`}
+                          />
+                        ))}
+                        <span className="text-xs font-semibold ml-1.5 text-foreground">
+                          {rev.rating}.0
+                        </span>
+                      </div>
+
+                      {/* Comment */}
+                      {rev.comment ? (
+                        <p className="text-sm text-foreground/90 italic bg-muted/40 p-3 rounded-md border border-border/40">
+                          "{rev.comment}"
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">
+                          Rating submitted without written comment.
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
                 );

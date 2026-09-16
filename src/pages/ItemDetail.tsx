@@ -623,10 +623,37 @@ const ItemDetail = () => {
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h3 className="font-semibold text-lg text-foreground">
-                      {owner?.full_name || "Community Member"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">{owner?.city || item.city || "Member"}</p>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-lg text-foreground">
+                        {owner?.full_name || "Community Member"}
+                      </h3>
+                      {owner?.rating_avg && Number(owner.rating_avg) > 0 ? (
+                        <div className="flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded text-xs font-semibold text-amber-600 dark:text-amber-400">
+                          <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                          <span>{Number(owner.rating_avg).toFixed(1)}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>{owner?.city || item.city || "Member"}</span>
+                      {owner?.rating_avg && Number(owner.rating_avg) > 0 ? (
+                        <>
+                          <span>•</span>
+                          <div className="flex items-center gap-0.5">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star
+                                key={s}
+                                className={`h-3 w-3 ${
+                                  s <= Math.round(Number(owner.rating_avg))
+                                    ? "text-amber-500 fill-amber-500"
+                                    : "text-muted-foreground/30"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
