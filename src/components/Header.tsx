@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Search, User, Menu, PlusCircle, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getAvatarUrl } from "@/lib/storage";
 import {
@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 const Header = () => {
   const { user, isAuthenticated, signOut } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -40,8 +41,8 @@ const Header = () => {
 
   const handleSignOut = async () => {
     try {
-      await signOut();
-      navigate("/");
+      await signOut(queryClient);
+      navigate("/auth");
     } catch (err) {
       console.error("Failed to sign out:", err);
     }

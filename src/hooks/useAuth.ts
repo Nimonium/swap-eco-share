@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
+import { QueryClient } from "@tanstack/react-query";
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -24,7 +25,12 @@ export const useAuth = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signOut = async () => {
+  const signOut = async (queryClient?: QueryClient) => {
+    // Clear all cached query data before signing out to prevent
+    // stale data from the previous user leaking into the next session
+    if (queryClient) {
+      queryClient.clear();
+    }
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
@@ -35,4 +41,4 @@ export const useAuth = () => {
     signOut,
     isAuthenticated: !!user,
   };
-};
+};
