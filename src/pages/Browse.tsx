@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { getMediaUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,12 +39,37 @@ const CATEGORIES = ["All", "Electronics", "Fashion", "Books", "Crafts", "Sports"
 
 const Browse = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [aiQuery, setAiQuery] = useState("");
   const [aiResults, setAiResults] = useState<any[]>([]);
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [savedItems, setSavedItems] = useState<Record<string, boolean>>({});
+
+  // Query user's blocked users list
+  const { data: userBlocks = [] } = useQuery({
+    queryKey: ["user-blocks", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("blocks")
+        .select("blocked_id")
+        .eq("blocker_id", user.id);
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch user blocks:", error);
+        throw error;
+      }
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const blockedUserIds = useMemo(
+    () => new Set(userBlocks.map((b: any) => b.blocked_id)),
+    [userBlocks]
+  );
 
   // Fetch real published items from Supabase
   const {
@@ -90,9 +116,12 @@ const Browse = () => {
     }
   }, [isError, error]);
 
-  // Client-side search & category filtering
+  // Client-side search & category filtering (excluding blocked users)
   const filteredItems = useMemo(() => {
     return items.filter((item: any) => {
+      // Exclude items from blocked users
+      if (blockedUserIds.has(item.owner_id)) return false;
+
       const matchesCategory =
         selectedCategory === "All" || item.category?.toLowerCase() === selectedCategory.toLowerCase();
 
@@ -110,9 +139,9 @@ const Browse = () => {
 
       return titleMatch || descMatch || catMatch || cityMatch || wantedMatch;
     });
-  }, [items, searchQuery, selectedCategory]);
+  }, [items, searchQuery, selectedCategory, blockedUserIds]);
 
-  // Real Swap AI matching using keyword overlap against real items
+  // Real Swap AI matching using keyword overlap against real items (excluding blocked users)
   const handleAiSearch = () => {
     if (!aiQuery.trim()) return;
     setIsAiSearching(true);
@@ -123,6 +152,8 @@ const Browse = () => {
       .filter((t) => t.length > 2);
 
     const matches = items.filter((item: any) => {
+      if (blockedUserIds.has(item.owner_id)) return false;
+
       const itemKeywords = [
         item.title?.toLowerCase() || "",
         item.description?.toLowerCase() || "",

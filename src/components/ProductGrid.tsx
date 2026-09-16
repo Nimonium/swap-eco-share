@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { getMediaUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +14,33 @@ const CATEGORIES = ["All Items", "Electronics", "Fashion", "Books", "Crafts", "S
 
 const ProductGrid = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState("All Items");
   const [savedItems, setSavedItems] = useState<Record<string, boolean>>({});
+
+  // Query user's blocked users list
+  const { data: userBlocks = [] } = useQuery({
+    queryKey: ["user-blocks", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("blocks")
+        .select("blocked_id")
+        .eq("blocker_id", user.id);
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch user blocks in ProductGrid:", error);
+        throw error;
+      }
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const blockedUserIds = useMemo(
+    () => new Set(userBlocks.map((b: any) => b.blocked_id)),
+    [userBlocks]
+  );
 
   const {
     data: items = [],
@@ -62,6 +88,8 @@ const ProductGrid = () => {
   }, [isError, error]);
 
   const filteredItems = items.filter((item: any) => {
+    // Exclude items from blocked users
+    if (blockedUserIds.has(item.owner_id)) return false;
     if (selectedCategory === "All Items") return true;
     return item.category?.toLowerCase() === selectedCategory.toLowerCase();
   });

@@ -38,6 +38,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   Clock,
+  UserX,
+  Shield,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -147,6 +149,69 @@ const Profile = () => {
       return data || [];
     },
     enabled: !!user,
+  });
+
+  // 4. Fetch User's Blocked Members
+  const { data: blockedUsers = [], isLoading: blocksLoading } = useQuery({
+    queryKey: ["my-blocked-users", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("blocks")
+        .select(`
+          id,
+          blocked_id,
+          created_at,
+          blocked_user:profiles!blocks_blocked_id_fkey (
+            id,
+            full_name,
+            avatar_url,
+            city
+          )
+        `)
+        .eq("blocker_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch blocked users:", error);
+        throw error;
+      }
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Unblock user mutation
+  const unblockMutation = useMutation({
+    mutationFn: async (blockId: string) => {
+      const { error } = await supabase
+        .from("blocks")
+        .delete()
+        .eq("id", blockId);
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to unblock user:", error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-blocked-users", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["user-blocks", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["published-items"] });
+      queryClient.invalidateQueries({ queryKey: ["home-published-items"] });
+      toast({
+        title: "Member Unblocked",
+        description: "You have unblocked this user. Their listings will now appear in your feed again.",
+      });
+    },
+    onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Unblock failed:", err);
+      toast({
+        title: "Unblock Failed",
+        description: err.message || "Failed to unblock member.",
+        variant: "destructive",
+      });
+    },
   });
 
   // Populate form fields when opening edit dialog
@@ -585,6 +650,85 @@ const Profile = () => {
                           Rating submitted without written comment.
                         </p>
                       )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Blocked Members Section */}
+        <div className="space-y-6 pt-6 border-t border-border mt-10">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <UserX className="h-6 w-6 text-destructive" />
+              Blocked Members
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Users you have blocked cannot propose swaps with you and their listings are excluded from your feed ({blockedUsers.length})
+            </p>
+          </div>
+
+          {blocksLoading ? (
+            <div className="py-8 flex flex-col items-center justify-center text-muted-foreground gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-sm">Loading blocked members...</p>
+            </div>
+          ) : blockedUsers.length === 0 ? (
+            <Card className="border-dashed border-border">
+              <CardContent className="py-8 text-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <h3 className="text-sm font-semibold">No blocked members</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                  You haven't blocked any community members.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {blockedUsers.map((b: any) => {
+                const blockedProfile = b.blocked_user;
+                const blockedAvatar = blockedProfile?.avatar_url
+                  ? getAvatarUrl(blockedProfile.avatar_url)
+                  : "";
+                const blockedName = blockedProfile?.full_name || "Community Member";
+
+                return (
+                  <Card key={b.id} className="border-border bg-card">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-10 w-10 border border-border flex-shrink-0">
+                          <AvatarImage src={blockedAvatar} alt={blockedName} />
+                          <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">
+                            {blockedName.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm truncate text-foreground">
+                            {blockedName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Blocked {format(new Date(b.created_at), "MMM d, yyyy")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => unblockMutation.mutate(b.id)}
+                        disabled={unblockMutation.isPending}
+                        className="text-xs flex-shrink-0 hover:bg-muted"
+                      >
+                        {unblockMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          "Unblock"
+                        )}
+                      </Button>
                     </CardContent>
                   </Card>
                 );

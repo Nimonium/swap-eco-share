@@ -48,6 +48,13 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
   MapPin,
   Clock,
@@ -61,6 +68,11 @@ import {
   Share2,
   Edit3,
   Trash2,
+  Flag,
+  UserX,
+  Shield,
+  MoreVertical,
+  AlertCircle,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -109,6 +121,14 @@ const ItemDetail = () => {
 
   // Delete dialog state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  // Report dialog state
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<string>("fake_listing");
+  const [reportDetails, setReportDetails] = useState<string>("");
+
+  // Block confirmation dialog state
+  const [isBlockConfirmOpen, setIsBlockConfirmOpen] = useState(false);
 
   // 1. Fetch Item Data with Owner Profile and Item Media
   const {
@@ -308,6 +328,147 @@ const ItemDetail = () => {
     },
   });
 
+  // 6. User Blocks Query
+  const { data: userBlocks = [] } = useQuery({
+    queryKey: ["user-blocks", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("blocks")
+        .select("id, blocked_id")
+        .eq("blocker_id", user.id);
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch user blocks in ItemDetail:", error);
+        throw error;
+      }
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const activeBlock = userBlocks.find((b: any) => b.blocked_id === item?.owner_id);
+  const isUserBlocked = !!activeBlock;
+
+  // 7. Submit Report Mutation
+  const submitReportMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      if (!item) throw new Error("Item not loaded");
+
+      const { data, error } = await supabase
+        .from("reports")
+        .insert({
+          reporter_id: user.id,
+          reported_item_id: item.id,
+          reported_user_id: item.owner_id,
+          reason: reportReason,
+          details: reportDetails.trim() || null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to submit report:", error);
+        throw error;
+      }
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Report Submitted",
+        description: "Report submitted — our team will review it. Thank you for keeping our community safe.",
+      });
+      setIsReportDialogOpen(false);
+      setReportReason("fake_listing");
+      setReportDetails("");
+    },
+    onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Report submission failed:", err);
+      toast({
+        title: "Report Failed",
+        description: err.message || "Failed to submit report.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // 8. Block User Mutation
+  const blockUserMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      if (!item?.owner_id) throw new Error("Owner not specified");
+
+      const { data, error } = await supabase
+        .from("blocks")
+        .insert({
+          blocker_id: user.id,
+          blocked_id: item.owner_id,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to block user:", error);
+        throw error;
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-blocks", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["published-items"] });
+      queryClient.invalidateQueries({ queryKey: ["home-published-items"] });
+      toast({
+        title: "User Blocked",
+        description: `${owner?.full_name || "User"} has been blocked. Their listings will no longer appear in your feed.`,
+      });
+      setIsBlockConfirmOpen(false);
+    },
+    onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Block user failed:", err);
+      toast({
+        title: "Could Not Block User",
+        description: err.message || "Failed to block user.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // 9. Unblock User Mutation
+  const unblockUserMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      if (!activeBlock) throw new Error("No active block found");
+
+      const { error } = await supabase
+        .from("blocks")
+        .delete()
+        .eq("id", activeBlock.id);
+
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to unblock user:", error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-blocks", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["published-items"] });
+      queryClient.invalidateQueries({ queryKey: ["home-published-items"] });
+      toast({
+        title: "User Unblocked",
+        description: `${owner?.full_name || "User"} has been unblocked.`,
+      });
+    },
+    onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Unblock failed:", err);
+      toast({
+        title: "Could Not Unblock",
+        description: err.message || "Failed to unblock user.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTitle.trim()) {
@@ -421,6 +582,16 @@ const ItemDetail = () => {
             >
               <Share2 className="h-4 w-4" /> Share
             </Button>
+            {!isOwner && isAuthenticated && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsReportDialogOpen(true)}
+                className="gap-1.5 text-muted-foreground hover:text-destructive"
+              >
+                <Flag className="h-4 w-4" /> Report
+              </Button>
+            )}
           </div>
         </div>
 
@@ -583,6 +754,16 @@ const ItemDetail = () => {
                         </Button>
                       </div>
                     </div>
+                  ) : isUserBlocked ? (
+                    <div className="p-4 bg-muted/60 border border-border rounded-xl text-center space-y-2">
+                      <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-destructive uppercase tracking-wider">
+                        <UserX className="h-4 w-4" />
+                        <span>Member Blocked</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        You have blocked this member. Unblock them to propose a swap or view their other listings.
+                      </p>
+                    </div>
                   ) : (
                     <Button
                       variant="eco"
@@ -609,10 +790,48 @@ const ItemDetail = () => {
 
             {/* Owner Profile Card */}
             <Card className="border-border">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-base text-muted-foreground uppercase tracking-wider font-semibold">
                   Listed By
                 </CardTitle>
+                {!isOwner && isAuthenticated && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground">
+                        <MoreVertical className="h-4 w-4" />
+                        <span className="sr-only">Owner actions</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem
+                        onClick={() => setIsReportDialogOpen(true)}
+                        className="cursor-pointer gap-2 text-foreground"
+                      >
+                        <Flag className="h-4 w-4 text-amber-500" />
+                        <span>Report Listing or Member</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {isUserBlocked ? (
+                        <DropdownMenuItem
+                          onClick={() => unblockUserMutation.mutate()}
+                          disabled={unblockUserMutation.isPending}
+                          className="cursor-pointer gap-2 text-foreground"
+                        >
+                          <Shield className="h-4 w-4 text-primary" />
+                          <span>Unblock Member</span>
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          onClick={() => setIsBlockConfirmOpen(true)}
+                          className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                        >
+                          <UserX className="h-4 w-4" />
+                          <span>Block Member</span>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-4">
@@ -960,6 +1179,122 @@ const ItemDetail = () => {
                 </>
               ) : (
                 "Remove Listing"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Report Listing / Member Dialog */}
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <Flag className="h-5 w-5 text-amber-500" />
+              Report Listing or Member
+            </DialogTitle>
+            <DialogDescription>
+              Help maintain a safe community. Reports are strictly confidential and reviewed promptly by our moderation team.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Reason for Report</Label>
+              <Select value={reportReason} onValueChange={setReportReason}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fake_listing">Fake or Misleading Listing</SelectItem>
+                  <SelectItem value="prohibited_item">Prohibited or Hazardous Item</SelectItem>
+                  <SelectItem value="harassment">Harassment or Abusive Behavior</SelectItem>
+                  <SelectItem value="fraud">Fraud, Scam, or Counterfeit Item</SelectItem>
+                  <SelectItem value="other">Other Community Violation</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">
+                Additional Details <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+              </Label>
+              <Textarea
+                placeholder="Provide any context that will help our team evaluate this report (max 500 characters)..."
+                value={reportDetails}
+                onChange={(e) => setReportDetails(e.target.value)}
+                maxLength={500}
+                className="min-h-[100px] resize-none"
+              />
+              <p className="text-xs text-muted-foreground text-right">{reportDetails.length}/500</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsReportDialogOpen(false)}
+              disabled={submitReportMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => submitReportMutation.mutate()}
+              disabled={submitReportMutation.isPending}
+              className="gap-2"
+            >
+              {submitReportMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Submitting...
+                </>
+              ) : (
+                <>
+                  <Flag className="h-4 w-4" /> Submit Report
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Block Member Confirmation AlertDialog */}
+      <AlertDialog open={isBlockConfirmOpen} onOpenChange={setIsBlockConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <UserX className="h-5 w-5 text-destructive" />
+              Block {owner?.full_name || "this member"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                You won't see swaps or listings from this user anymore. You will not be able to propose swaps to each other.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                You can unblock them at any time from your profile settings.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={blockUserMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                blockUserMutation.mutate();
+              }}
+              disabled={blockUserMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+            >
+              {blockUserMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Blocking...
+                </>
+              ) : (
+                "Block Member"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
