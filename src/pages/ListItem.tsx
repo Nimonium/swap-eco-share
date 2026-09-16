@@ -514,7 +514,7 @@ const ListItem = () => {
 
       navigate(`/item/${itemId}`);
     } catch (err: any) {
-      console.error("Listing submission failed:", err);
+      console.error("[EcoSwapSquare Supabase Error] Listing submission failed:", err);
       toast({
         title: "Listing Failed",
         description: err.message || "Something went wrong while publishing your item.",

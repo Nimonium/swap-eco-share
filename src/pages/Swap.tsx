@@ -87,7 +87,10 @@ const Swap = () => {
         .or(`proposer_id.eq.${user.id},owner_id.eq.${user.id}`)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch swaps:", error);
+        throw error;
+      }
       return data || [];
     },
     enabled: !!user,
@@ -123,6 +126,7 @@ const Swap = () => {
       });
     },
     onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Failed to update swap status:", err);
       toast({
         title: "Update Failed",
         description: err.message || "Could not update swap status.",

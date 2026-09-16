@@ -140,7 +140,10 @@ const ItemDetail = () => {
         .eq("id", id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch item detail:", error);
+        throw error;
+      }
       return data;
     },
     enabled: !!id,
@@ -176,7 +179,10 @@ const ItemDetail = () => {
         .eq("owner_id", user.id)
         .eq("status", "published");
 
-      if (error) throw error;
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch user published items:", error);
+        throw error;
+      }
       return data;
     },
     enabled: !!user && isSwapDialogOpen,
@@ -217,6 +223,7 @@ const ItemDetail = () => {
       navigate("/swap");
     },
     onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Failed to propose swap:", err);
       toast({
         title: "Error Proposing Swap",
         description: err.message || "Failed to submit swap proposal.",
@@ -259,6 +266,7 @@ const ItemDetail = () => {
       setIsEditDialogOpen(false);
     },
     onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Failed to update item details:", err);
       toast({
         title: "Error Updating Listing",
         description: err.message || "Failed to update item details.",
@@ -291,6 +299,7 @@ const ItemDetail = () => {
       navigate("/browse");
     },
     onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Failed to delete item listing:", err);
       toast({
         title: "Error Removing Listing",
         description: err.message || "Failed to remove item listing.",

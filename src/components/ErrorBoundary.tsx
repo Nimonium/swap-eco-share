@@ -24,7 +24,12 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught rendering error in React ErrorBoundary:", error, errorInfo);
+    console.error(
+      "[EcoSwapSquare ErrorBoundary] Uncaught rendering error:",
+      error,
+      "\nComponent Stack:",
+      errorInfo.componentStack
+    );
     this.setState({ errorInfo });
   }
 

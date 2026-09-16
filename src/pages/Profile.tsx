@@ -81,7 +81,10 @@ const Profile = () => {
         .eq("id", user.id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch profile:", error);
+        throw error;
+      }
       return data;
     },
     enabled: !!user,
@@ -106,7 +109,10 @@ const Profile = () => {
         .eq("owner_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch user items:", error);
+        throw error;
+      }
       return data || [];
     },
     enabled: !!user,
@@ -159,7 +165,7 @@ const Profile = () => {
           });
 
         if (uploadError) {
-          console.warn("Avatar bucket upload error (falling back to direct path):", uploadError);
+          console.error("[EcoSwapSquare Supabase Error] Avatar bucket upload error:", uploadError);
           // If bucket doesn't exist yet, we still proceed with profile text update
         } else {
           updatedAvatarUrl = storagePath;
@@ -192,6 +198,7 @@ const Profile = () => {
       setAvatarPreview(null);
     },
     onError: (err: any) => {
+      console.error("[EcoSwapSquare Supabase Error] Failed to update profile:", err);
       toast({
         title: "Update Failed",
         description: err.message || "Failed to update profile.",

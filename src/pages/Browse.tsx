@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,10 +76,19 @@ const Browse = () => {
         .eq("status", "published")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch published items:", error);
+        throw error;
+      }
       return data || [];
     },
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      console.error("[EcoSwapSquare Supabase Error] Browse items query error:", error);
+    }
+  }, [isError, error]);
 
   // Client-side search & category filtering
   const filteredItems = useMemo(() => {

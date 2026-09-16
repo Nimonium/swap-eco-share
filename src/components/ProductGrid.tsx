@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,10 +47,19 @@ const ProductGrid = () => {
         .order("created_at", { ascending: false })
         .limit(9);
 
-      if (error) throw error;
+      if (error) {
+        console.error("[EcoSwapSquare Supabase Error] Failed to fetch home items:", error);
+        throw error;
+      }
       return data || [];
     },
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      console.error("[EcoSwapSquare Supabase Error] ProductGrid items query error:", error);
+    }
+  }, [isError, error]);
 
   const filteredItems = items.filter((item: any) => {
     if (selectedCategory === "All Items") return true;
