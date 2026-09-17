@@ -114,11 +114,18 @@ const About = () => {
               </Button>
             </div>
             <div className="relative">
-              <div className="w-full h-96 bg-gradient-to-br from-primary/20 to-success/20 rounded-2xl flex items-center justify-center">
-                <div className="text-center">
-                  <Leaf className="h-24 w-24 text-primary mx-auto mb-4" />
-                  <p className="text-lg font-medium text-foreground">
-                    Every swap makes a difference
+              <div className="relative w-full h-96 rounded-3xl overflow-hidden shadow-2xl border border-border">
+                <img
+                  src="/showcase/community_swapping.jpg"
+                  alt="Community members swapping items in park"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-6">
+                  <span className="text-xs font-semibold text-emerald-300 uppercase tracking-wider">
+                    Community in Action
+                  </span>
+                  <p className="text-lg font-bold text-white">
+                    Every swap keeps quality goods in use and saves carbon.
                   </p>
                 </div>
               </div>
