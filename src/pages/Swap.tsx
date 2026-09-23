@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +36,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { SwapChatSheet } from "@/components/SwapChatSheet";
 import { formatDistanceToNow } from "date-fns";
 
 const Swap = () => {
@@ -51,6 +52,74 @@ const Swap = () => {
   const [reviewRating, setReviewRating] = useState<number>(5);
   const [reviewHoverRating, setReviewHoverRating] = useState<number>(0);
   const [reviewComment, setReviewComment] = useState("");
+
+  // Real-time Chat Panel State
+  const [selectedSwapForChat, setSelectedSwapForChat] = useState<any | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
+  // Fetch unread messages count for current user
+  const { data: unreadMessages = [] } = useQuery({
+    queryKey: ["unread-swap-messages", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("swap_messages")
+        .select("id, swap_id, sender_id, read_at")
+        .is("read_at", null)
+        .neq("sender_id", user.id);
+
+      if (error) {
+        // Table might not exist yet before migration is run
+        console.warn("[EcoSwapSquare] Unread messages fetch:", error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const unreadCountBySwap = useMemo(() => {
+    const map: Record<string, number> = {};
+    unreadMessages.forEach((msg: any) => {
+      map[msg.swap_id] = (map[msg.swap_id] || 0) + 1;
+    });
+    return map;
+  }, [unreadMessages]);
+
+  // Real-time subscription to update unread badge live across swap cards
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel("global-swap-messages-unread")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "swap_messages",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["unread-swap-messages"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "swap_messages",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["unread-swap-messages"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
 
   // Fetch real user swaps from Supabase
   const {
@@ -576,22 +645,28 @@ const Swap = () => {
                             )
                           )}
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="ml-auto"
-                            onClick={() => {
-                              toast({
-                                title: "Chat / Coordination",
-                                description: `You can coordinate delivery with ${
-                                  otherPerson?.full_name || "the user"
-                                }!`,
-                              });
-                            }}
-                          >
-                            <MessageSquare className="h-4 w-4 mr-1" />
-                            Message
-                          </Button>
+                          {swap.status !== "declined" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="ml-auto relative gap-1.5 hover:bg-primary/10 hover:text-primary hover:border-primary/40 font-medium shadow-xs"
+                              onClick={() => {
+                                setSelectedSwapForChat(swap);
+                                setIsChatOpen(true);
+                              }}
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              <span>Message</span>
+                              {(unreadCountBySwap[swap.id] || 0) > 0 && (
+                                <Badge
+                                  variant="destructive"
+                                  className="h-5 min-w-[20px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center -mr-1 animate-pulse"
+                                >
+                                  {unreadCountBySwap[swap.id]}
+                                </Badge>
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -725,6 +800,17 @@ const Swap = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Real-time In-App Swap Chat Sheet */}
+        <SwapChatSheet
+          swap={selectedSwapForChat}
+          isOpen={isChatOpen}
+          onClose={() => {
+            setIsChatOpen(false);
+            setSelectedSwapForChat(null);
+          }}
+          currentUserId={user?.id}
+        />
       </main>
 
       <Footer />
