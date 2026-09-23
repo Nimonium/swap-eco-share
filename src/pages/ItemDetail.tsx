@@ -244,11 +244,23 @@ const ItemDetail = () => {
     },
     onError: (err: any) => {
       console.error("[EcoSwapSquare Supabase Error] Failed to propose swap:", err);
+      const isRlsError =
+        err?.code === "42501" ||
+        err?.message?.toLowerCase().includes("row-level security") ||
+        err?.message?.toLowerCase().includes("policy") ||
+        err?.message?.toLowerCase().includes("permission denied");
+
       toast({
-        title: "Error Proposing Swap",
-        description: err.message || "Failed to submit swap proposal.",
+        title: "Unable to Propose Swap",
+        description: isRlsError
+          ? "Unable to propose this swap right now."
+          : err?.message || "Failed to submit swap proposal.",
         variant: "destructive",
       });
+
+      if (isRlsError) {
+        setIsSwapDialogOpen(false);
+      }
     },
   });
 
