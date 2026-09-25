@@ -1,7 +1,24 @@
 -- Migration: Add real-time swap_messages table with RLS and Realtime publication
 -- 20260924000000_swap_messages.sql
 
--- 1. Create swap_messages table
+-- 1. Ensure helper function is_blocked_bidirectional exists
+create or replace function public.is_blocked_bidirectional(user_a uuid, user_b uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.blocks
+    where (blocker_id = user_a and blocked_id = user_b)
+       or (blocker_id = user_b and blocked_id = user_a)
+  );
+$$;
+
+grant execute on function public.is_blocked_bidirectional(uuid, uuid) to authenticated;
+
+-- 2. Create swap_messages table
 create table if not exists public.swap_messages (
   id uuid default gen_random_uuid() primary key,
   swap_id uuid references public.swaps(id) on delete cascade not null,
@@ -28,7 +45,7 @@ alter table public.swap_messages enable row level security;
 -- Grant standard permissions to authenticated users
 grant select, insert, update on public.swap_messages to authenticated;
 
--- 2. RLS Policies
+-- 3. RLS Policies
 
 -- SELECT: Only the swap's proposer or owner can read messages
 drop policy if exists "Swap participants can read messages" on public.swap_messages;
@@ -96,7 +113,7 @@ create trigger trg_prevent_swap_message_tampering
   before update on public.swap_messages
   for each row execute function public.prevent_swap_message_tampering();
 
--- 3. Add to Supabase Realtime publication (idempotent)
+-- 4. Add to Supabase Realtime publication (idempotent)
 do $$
 begin
   if not exists (
