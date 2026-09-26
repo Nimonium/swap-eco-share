@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret",
 };
 
 interface NotificationPayload {
@@ -19,6 +19,17 @@ interface NotificationPayload {
   };
 }
 
+// HTML Escaping Helper to prevent HTML & Link Injection in emails
+function escapeHtml(text?: string | null): string {
+  if (!text) return "";
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 Deno.serve(async (req: Request) => {
   // 1. Handle CORS Preflight
   if (req.method === "OPTIONS") {
@@ -33,6 +44,18 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // 2. Authentication: Verify Shared Webhook Secret
+    const internalSecret = Deno.env.get("INTERNAL_WEBHOOK_SECRET");
+    const providedSecret = req.headers.get("x-webhook-secret");
+
+    if (!internalSecret || providedSecret !== internalSecret) {
+      console.warn("[Auth Warning] Unauthorized request: invalid or missing x-webhook-secret header");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Invalid or missing webhook secret" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const payload: NotificationPayload = await req.json();
     const { type, recipient_user_id, actor_id, data } = payload;
 
@@ -43,7 +66,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 2. Prevent emailing user for their own actions
+    // 3. Prevent emailing user for their own actions
     if (actor_id && actor_id === recipient_user_id) {
       return new Response(
         JSON.stringify({ status: "skipped", reason: "Cannot send notification to actor for own action" }),
@@ -51,7 +74,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Initialize Supabase Admin Client
+    // 4. Initialize Supabase Admin Client
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -65,7 +88,7 @@ Deno.serve(async (req: Request) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 4. Check recipient notification preferences in profiles
+    // 5. Check recipient notification preferences in profiles
     const { data: recipientProfile, error: profileErr } = await supabaseAdmin
       .from("profiles")
       .select("full_name, email_notifications_enabled")
@@ -80,7 +103,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 5. Check blocks table (bidirectional block check)
+    // 6. Check blocks table (bidirectional block check)
     if (actor_id) {
       const { data: blocks, error: blockErr } = await supabaseAdmin
         .from("blocks")
@@ -99,7 +122,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 6. Rate-limiting for new_message (no more than 1 email per 15 minutes per swap thread)
+    // 7. Rate-limiting for new_message (no more than 1 email per 15 minutes per swap thread)
     if (type === "new_message" && data?.swap_id) {
       const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       const { data: recentLogs, error: logErr } = await supabaseAdmin
@@ -120,7 +143,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 7. Lookup recipient email securely from auth.users
+    // 8. Lookup recipient email securely from auth.users
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(recipient_user_id);
     const recipientEmail = userData?.user?.email;
 
@@ -132,11 +155,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 8. Generate Email Content based on notification type
+    // 9. Generate and HTML-Escape Content based on notification type
     const siteUrl = Deno.env.get("SITE_URL") || "https://swap-eco-share.vercel.app";
-    const recipientName = recipientProfile?.full_name || "Eco Swapper";
-    const actorName = data?.actor_name || "Another community member";
-    const itemTitle = data?.item_title || "your item";
+
+    // Escape all user-controlled values to prevent HTML injection
+    const rawRecipientName = recipientProfile?.full_name || "Eco Swapper";
+    const rawActorName = data?.actor_name || "Another community member";
+    const rawItemTitle = data?.item_title || "your item";
+
+    const safeRecipientName = escapeHtml(rawRecipientName);
+    const safeActorName = escapeHtml(rawActorName);
+    const safeItemTitle = escapeHtml(rawItemTitle);
+    const safeMessagePreview = escapeHtml(data?.message_preview);
+    const safeComment = escapeHtml(data?.comment);
 
     let subject = "EcoSwapSquare Notification";
     let heading = "Update on EcoSwapSquare";
@@ -147,52 +178,53 @@ Deno.serve(async (req: Request) => {
 
     switch (type) {
       case "new_swap_proposal":
-        subject = `New Swap Proposal for "${itemTitle}" on EcoSwapSquare`;
+        subject = `New Swap Proposal for "${rawItemTitle}" on EcoSwapSquare`;
         heading = "You Have a New Swap Proposal!";
-        bodyText = `<strong>${actorName}</strong> has proposed a swap for your listed item <strong>"${itemTitle}"</strong>. Review the offered trade and accept or decline.`;
+        bodyText = `<strong>${safeActorName}</strong> has proposed a swap for your listed item <strong>"${safeItemTitle}"</strong>. Review the offered trade and accept or decline.`;
         ctaText = "Review Swap Proposal";
         ctaUrl = `${siteUrl}/swap`;
-        if (data.message_preview) {
-          quoteBox = `"${data.message_preview}"`;
+        if (safeMessagePreview) {
+          quoteBox = `"${safeMessagePreview}"`;
         }
         break;
 
       case "swap_accepted":
         subject = `Swap Accepted! 🎉 Time to coordinate your exchange`;
         heading = "Your Swap Proposal Was Accepted!";
-        bodyText = `Great news! <strong>${actorName}</strong> accepted your swap proposal for <strong>"${itemTitle}"</strong>. You can now use in-app chat to coordinate handover or delivery.`;
+        bodyText = `Great news! <strong>${safeActorName}</strong> accepted your swap proposal for <strong>"${safeItemTitle}"</strong>. You can now use in-app chat to coordinate handover or delivery.`;
         ctaText = "Open Swap Chat";
         ctaUrl = `${siteUrl}/swap`;
         break;
 
       case "swap_declined":
-        subject = `Update on your swap proposal for "${itemTitle}"`;
+        subject = `Update on your swap proposal for "${rawItemTitle}"`;
         heading = "Swap Proposal Update";
-        bodyText = `<strong>${actorName}</strong> was unable to accept your swap proposal for <strong>"${itemTitle}"</strong> at this time. Browse other community listings to find your next great trade!`;
+        bodyText = `<strong>${safeActorName}</strong> was unable to accept your swap proposal for <strong>"${safeItemTitle}"</strong> at this time. Browse other community listings to find your next great trade!`;
         ctaText = "Browse Items";
         ctaUrl = `${siteUrl}/browse`;
         break;
 
       case "new_message":
-        subject = `New message from ${actorName} on EcoSwapSquare`;
+        subject = `New message from ${rawActorName} on EcoSwapSquare`;
         heading = "New Message Received";
-        bodyText = `<strong>${actorName}</strong> sent you a message regarding your swap:`;
+        bodyText = `<strong>${safeActorName}</strong> sent you a message regarding your swap:`;
         ctaText = "Reply in Chat";
         ctaUrl = `${siteUrl}/swap`;
-        if (data.message_preview) {
-          quoteBox = `"${data.message_preview}"`;
+        if (safeMessagePreview) {
+          quoteBox = `"${safeMessagePreview}"`;
         }
         break;
 
       case "new_review":
-        const stars = data.rating ? "★".repeat(data.rating) : "5★";
-        subject = `You received a ${data.rating || 5}★ review on EcoSwapSquare!`;
+        const rawRating = Math.min(Math.max(Number(data.rating) || 5, 1), 5);
+        const stars = "★".repeat(rawRating);
+        subject = `You received a ${rawRating}★ review on EcoSwapSquare!`;
         heading = "New Community Review";
-        bodyText = `<strong>${actorName}</strong> left you a <strong>${stars} (${data.rating || 5}/5)</strong> review for your completed swap!`;
+        bodyText = `<strong>${safeActorName}</strong> left you a <strong>${stars} (${rawRating}/5)</strong> review for your completed swap!`;
         ctaText = "View Your Profile";
         ctaUrl = `${siteUrl}/profile`;
-        if (data.comment) {
-          quoteBox = `"${data.comment}"`;
+        if (safeComment) {
+          quoteBox = `"${safeComment}"`;
         }
         break;
     }
@@ -204,7 +236,7 @@ Deno.serve(async (req: Request) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${subject}</title>
+  <title>${escapeHtml(subject)}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f4f7f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7f5; padding: 40px 15px;">
@@ -231,7 +263,7 @@ Deno.serve(async (req: Request) => {
               </h2>
               
               <p style="margin: 0 0 18px 0; font-size: 15px; line-height: 1.6; color: #374151;">
-                Hi ${recipientName},
+                Hi ${safeRecipientName},
               </p>
 
               <p style="margin: 0 0 20px 0; font-size: 15px; line-height: 1.6; color: #374151;">
@@ -240,7 +272,7 @@ Deno.serve(async (req: Request) => {
 
               ${
                 quoteBox
-                  ? `<div style="background-color: #f9fafb; border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 6px; margin: 20px 0; font-style: italic; color: #4b5563; font-size: 14px; line-height: 1.5;">
+                  ? `<div style="background-color: #f9fafb; border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 6px; margin: 20px 0; font-style: italic; color: #4b5563; font-size: 14px; line-height: 1.5; word-break: break-word;">
                       ${quoteBox}
                     </div>`
                   : ""
@@ -283,7 +315,7 @@ Deno.serve(async (req: Request) => {
 </html>
     `;
 
-    // 9. Send email via Resend
+    // 10. Send email via Resend
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     const fromEmail = Deno.env.get("FROM_EMAIL") || "EcoSwapSquare <onboarding@resend.dev>";
 
@@ -292,7 +324,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           status: "simulated",
-          message: "RESEND_API_KEY is not set. To send real emails, run: supabase secrets set RESEND_API_KEY=re_...",
+          message: "RESEND_API_KEY is not set. Set it via 'supabase secrets set RESEND_API_KEY=re_...'",
           details: { to: recipientEmail, subject },
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -323,7 +355,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 10. Record notification log for rate-limiting and audit history
+    // 11. Record notification log for rate-limiting and audit history
     await supabaseAdmin.from("notification_logs").insert({
       recipient_id: recipient_user_id,
       actor_id: actor_id || null,
