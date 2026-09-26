@@ -40,8 +40,10 @@ import {
   Clock,
   UserX,
   Shield,
+  Mail,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
+import { Switch } from "@/components/ui/switch";
 
 const Profile = () => {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
@@ -53,6 +55,7 @@ const Profile = () => {
   const [fullName, setFullName] = useState("");
   const [city, setCity] = useState("");
   const [bio, setBio] = useState("");
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
   const [avatarFile, setAvatarFile] = useState<Blob | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -220,8 +223,42 @@ const Profile = () => {
       setFullName(profile.full_name || "");
       setCity(profile.city || "");
       setBio(profile.bio || "");
+      setEmailNotificationsEnabled(profile.email_notifications_enabled ?? true);
     }
   }, [profile, isEditDialogOpen]);
+
+  // Instant notification preference toggle mutation
+  const toggleNotificationsMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ email_notifications_enabled: enabled })
+        .eq("id", user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
+      toast({
+        title: data.email_notifications_enabled ? "Email Notifications Enabled" : "Email Notifications Disabled",
+        description: data.email_notifications_enabled
+          ? "You will receive email notifications about new proposals, messages, and reviews."
+          : "You will not receive email notifications about swap activity.",
+      });
+    },
+    onError: (err: any) => {
+      console.error("[EcoSwapSquare] Toggle notification preferences failed:", err);
+      toast({
+        title: "Update Failed",
+        description: err.message || "Failed to update notification preferences.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -275,6 +312,7 @@ const Profile = () => {
           city: city.trim() || null,
           bio: bio.trim() || null,
           avatar_url: updatedAvatarUrl,
+          email_notifications_enabled: emailNotificationsEnabled,
         })
         .eq("id", user.id)
         .select()
@@ -658,6 +696,43 @@ const Profile = () => {
           )}
         </div>
 
+        {/* Email Notification Preferences Section */}
+        <div className="space-y-4 pt-6 border-t border-border mt-10">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <Mail className="h-6 w-6 text-primary" />
+              Notification Preferences
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Control when EcoSwapSquare emails you about trade proposals, chat messages, and community activity
+            </p>
+          </div>
+
+          <Card className="border-border bg-card shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="email-notifications-toggle" className="text-base font-semibold cursor-pointer">
+                    Email me about new messages and swap activity
+                  </Label>
+                  <p className="text-xs sm:text-sm text-muted-foreground max-w-xl leading-relaxed">
+                    Receive email notifications for incoming swap offers, trade updates, direct chat messages, and reviews when you're away from the platform.
+                  </p>
+                </div>
+                <Switch
+                  id="email-notifications-toggle"
+                  checked={profile?.email_notifications_enabled ?? true}
+                  disabled={toggleNotificationsMutation.isPending}
+                  onCheckedChange={(checked) => {
+                    toggleNotificationsMutation.mutate(checked);
+                  }}
+                  className="self-start sm:self-auto flex-shrink-0"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Blocked Members Section */}
         <div className="space-y-6 pt-6 border-t border-border mt-10">
           <div>
@@ -821,6 +896,24 @@ const Profile = () => {
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Share your interests, what you collect, or preferred trade items..."
+              />
+            </div>
+
+            {/* Email Notifications Toggle */}
+            <div className="flex items-center justify-between p-3.5 bg-muted/40 border border-border/60 rounded-xl gap-3">
+              <div className="space-y-0.5 min-w-0">
+                <Label htmlFor="dialog-email-notifications-toggle" className="text-sm font-semibold cursor-pointer block">
+                  Email Notifications
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Email me about new messages and swap activity
+                </p>
+              </div>
+              <Switch
+                id="dialog-email-notifications-toggle"
+                checked={emailNotificationsEnabled}
+                onCheckedChange={setEmailNotificationsEnabled}
+                className="flex-shrink-0"
               />
             </div>
           </div>

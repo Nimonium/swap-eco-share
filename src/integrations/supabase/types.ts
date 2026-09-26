@@ -18,6 +18,7 @@ export type Database = {
           bio: string | null
           rating_avg: number | null
           swap_count: number | null
+          email_notifications_enabled: boolean
           created_at: string
         }
         Insert: {
@@ -28,6 +29,7 @@ export type Database = {
           bio?: string | null
           rating_avg?: number | null
           swap_count?: number | null
+          email_notifications_enabled?: boolean
           created_at?: string
         }
         Update: {
@@ -38,6 +40,7 @@ export type Database = {
           bio?: string | null
           rating_avg?: number | null
           swap_count?: number | null
+          email_notifications_enabled?: boolean
           created_at?: string
         }
         Relationships: []
@@ -424,6 +427,55 @@ export type Database = {
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      notification_logs: {
+        Row: {
+          id: string
+          recipient_id: string
+          actor_id: string | null
+          swap_id: string | null
+          notification_type: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          recipient_id: string
+          actor_id?: string | null
+          swap_id?: string | null
+          notification_type: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          recipient_id?: string
+          actor_id?: string | null
+          swap_id?: string | null
+          notification_type?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_logs_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_logs_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_logs_swap_id_fkey"
+            columns: ["swap_id"]
+            isOneToOne: false
+            referencedRelation: "swaps"
             referencedColumns: ["id"]
           }
         ]
