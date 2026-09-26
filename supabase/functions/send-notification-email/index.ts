@@ -49,9 +49,21 @@ Deno.serve(async (req: Request) => {
     const providedSecret = req.headers.get("x-webhook-secret");
 
     if (!internalSecret || providedSecret !== internalSecret) {
-      console.warn("[Auth Warning] Unauthorized request: invalid or missing x-webhook-secret header");
+      console.warn(
+        `[Auth Warning] Unauthorized request: ` +
+        `hasEnvSecret=${Boolean(internalSecret)} (len=${internalSecret?.length ?? 0}), ` +
+        `hasHeaderSecret=${Boolean(providedSecret)} (len=${providedSecret?.length ?? 0})`
+      );
       return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid or missing webhook secret" }),
+        JSON.stringify({
+          error: "Unauthorized: Invalid or missing webhook secret",
+          diagnostic: {
+            env_secret_present: Boolean(internalSecret),
+            env_secret_len: internalSecret?.length ?? 0,
+            header_secret_present: Boolean(providedSecret),
+            header_secret_len: providedSecret?.length ?? 0,
+          },
+        }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
