@@ -1,21 +1,33 @@
--- Migration: Add x-webhook-secret authentication header to pg_net database triggers
+-- Migration: Add x-webhook-secret authentication header to pg_net database triggers using Supabase Vault
 -- 20260926000001_webhook_authentication.sql
 
--- 1. Helper function holding the shared webhook secret
--- Set INTERNAL_WEBHOOK_SECRET in Supabase Edge Function Secrets to match this value!
+-- 1. Ensure supabase_vault extension is enabled
+create extension if not exists supabase_vault cascade;
+
+-- 2. Helper function to read the secret dynamically from Supabase Vault
+-- NOTE: Contains NO hardcoded secrets. Value is stored encrypted in Supabase Vault.
 create or replace function public.get_internal_webhook_secret()
 returns text
-language sql
+language plpgsql
 security definer
-stable
+set search_path = public, vault
 as $$
-  select 'ecoswap_wh_secret_2026'::text;
+declare
+  v_secret text;
+begin
+  select decrypted_secret into v_secret
+  from vault.decrypted_secrets
+  where name = 'internal_webhook_secret'
+  limit 1;
+
+  return v_secret;
+end;
 $$;
 
--- Grant execution to postgres & service role
+-- Grant execution only to database engine roles
 grant execute on function public.get_internal_webhook_secret() to postgres, service_role;
 
--- 2. Update trigger functions to include x-webhook-secret header
+-- 3. Update trigger functions to include x-webhook-secret header retrieved from Vault
 
 -- A. New Swap Proposal Trigger
 create or replace function public.notify_on_new_swap_proposal()
@@ -23,7 +35,9 @@ returns trigger as $$
 declare
   v_item_title text;
   v_actor_name text;
+  v_secret text;
 begin
+  v_secret := public.get_internal_webhook_secret();
   select title into v_item_title from public.items where id = new.item_id;
   select full_name into v_actor_name from public.profiles where id = new.proposer_id;
 
@@ -31,7 +45,7 @@ begin
     url := 'https://smlboienukczbvtihfxl.supabase.co/functions/v1/send-notification-email',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-webhook-secret', public.get_internal_webhook_secret()
+      'x-webhook-secret', coalesce(v_secret, '')
     ),
     body := jsonb_build_object(
       'type', 'new_swap_proposal',
@@ -60,11 +74,13 @@ declare
   v_item_title text;
   v_actor_name text;
   v_type text;
+  v_secret text;
 begin
   if old.status = new.status or new.status not in ('accepted', 'declined') then
     return new;
   end if;
 
+  v_secret := public.get_internal_webhook_secret();
   select title into v_item_title from public.items where id = new.item_id;
   select full_name into v_actor_name from public.profiles where id = new.owner_id;
 
@@ -79,7 +95,7 @@ begin
       url := 'https://smlboienukczbvtihfxl.supabase.co/functions/v1/send-notification-email',
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'x-webhook-secret', public.get_internal_webhook_secret()
+        'x-webhook-secret', coalesce(v_secret, '')
       ),
       body := jsonb_build_object(
         'type', v_type,
@@ -110,6 +126,7 @@ declare
   v_recipient_id uuid;
   v_actor_name text;
   v_item_title text;
+  v_secret text;
 begin
   select * into v_swap from public.swaps where id = new.swap_id;
   if not found then
@@ -122,6 +139,7 @@ begin
     v_recipient_id := v_swap.proposer_id;
   end if;
 
+  v_secret := public.get_internal_webhook_secret();
   select full_name into v_actor_name from public.profiles where id = new.sender_id;
   select title into v_item_title from public.items where id = v_swap.item_id;
 
@@ -129,7 +147,7 @@ begin
     url := 'https://smlboienukczbvtihfxl.supabase.co/functions/v1/send-notification-email',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-webhook-secret', public.get_internal_webhook_secret()
+      'x-webhook-secret', coalesce(v_secret, '')
     ),
     body := jsonb_build_object(
       'type', 'new_message',
@@ -157,14 +175,16 @@ create or replace function public.notify_on_new_review()
 returns trigger as $$
 declare
   v_actor_name text;
+  v_secret text;
 begin
+  v_secret := public.get_internal_webhook_secret();
   select full_name into v_actor_name from public.profiles where id = new.reviewer_id;
 
   perform net.http_post(
     url := 'https://smlboienukczbvtihfxl.supabase.co/functions/v1/send-notification-email',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-webhook-secret', public.get_internal_webhook_secret()
+      'x-webhook-secret', coalesce(v_secret, '')
     ),
     body := jsonb_build_object(
       'type', 'new_review',
