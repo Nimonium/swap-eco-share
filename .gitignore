@@ -28,5 +28,8 @@ dist-ssr
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
 *.sw?
+
+# Supabase CLI temp files
+supabase/.temp/
+
