@@ -128,7 +128,7 @@ export const DisputeDetailsModal = ({
         const file = files[i];
         const compressed = await compressImage(file, 500);
         const fileName = `${Date.now()}_add_${i}.jpg`;
-        const storagePath = `${currentUserId}/disputes/${dispute.id}/${fileName}`;
+        const storagePath = `disputes/${dispute.id}/${fileName}`;
 
         const { error: uploadErr } = await supabase.storage
           .from("item-media")

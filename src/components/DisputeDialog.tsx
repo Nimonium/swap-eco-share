@@ -157,7 +157,7 @@ export const DisputeDialog = ({
         for (let i = 0; i < evidenceFiles.length; i++) {
           const item = evidenceFiles[i];
           const fileName = `${Date.now()}_${i}.jpg`;
-          const storagePath = `${currentUserId}/disputes/${dispute.id}/${fileName}`;
+          const storagePath = `disputes/${dispute.id}/${fileName}`;
 
           const { error: uploadErr } = await supabase.storage
             .from("item-media")
