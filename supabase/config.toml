@@ -2,3 +2,8 @@ project_id = "smlboienukczbvtihfxl"
 
 [functions.send-notification-email]
 verify_jwt = false
+
+[functions.send-push-notification]
+enabled = true
+verify_jwt = false
+

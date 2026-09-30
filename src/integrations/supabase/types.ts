@@ -19,6 +19,7 @@ export type Database = {
           rating_avg: number | null
           swap_count: number | null
           email_notifications_enabled: boolean
+          push_notifications_enabled: boolean
           created_at: string
         }
         Insert: {
@@ -30,6 +31,7 @@ export type Database = {
           rating_avg?: number | null
           swap_count?: number | null
           email_notifications_enabled?: boolean
+          push_notifications_enabled?: boolean
           created_at?: string
         }
         Update: {
@@ -41,6 +43,7 @@ export type Database = {
           rating_avg?: number | null
           swap_count?: number | null
           email_notifications_enabled?: boolean
+          push_notifications_enabled?: boolean
           created_at?: string
         }
         Relationships: []
@@ -476,6 +479,41 @@ export type Database = {
             columns: ["swap_id"]
             isOneToOne: false
             referencedRelation: "swaps"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          endpoint?: string
+          p256dh?: string
+          auth?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           }
         ]

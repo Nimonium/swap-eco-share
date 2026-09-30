@@ -41,9 +41,20 @@ import {
   UserX,
   Shield,
   Mail,
+  Bell,
+  BellRing,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { Switch } from "@/components/ui/switch";
+import {
+  subscribeToPushNotifications,
+  unsubscribeFromPushNotifications,
+  isPushNotificationSupported,
+} from "@/utils/pushNotifications";
+
+const VAPID_PUBLIC_KEY =
+  import.meta.env.VITE_VAPID_PUBLIC_KEY ||
+  "BCiMqSA-8LMPUyfANcW7vk8IFzTkc30qhqe_-N0-ocVJpbBFLlqD9xuhek7cc8WIsWRl89RFzB28IsYFu6XIS3g";
 
 const Profile = () => {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
@@ -56,6 +67,8 @@ const Profile = () => {
   const [city, setCity] = useState("");
   const [bio, setBio] = useState("");
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(true);
+  const [isPushSubscribing, setIsPushSubscribing] = useState(false);
   const [avatarFile, setAvatarFile] = useState<Blob | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -224,8 +237,121 @@ const Profile = () => {
       setCity(profile.city || "");
       setBio(profile.bio || "");
       setEmailNotificationsEnabled(profile.email_notifications_enabled ?? true);
+      setPushNotificationsEnabled(profile.push_notifications_enabled ?? true);
     }
   }, [profile, isEditDialogOpen]);
+
+  // Push notification toggle handler
+  const handleTogglePushNotifications = async (enabled: boolean) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to update notification settings.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isPushNotificationSupported()) {
+      toast({
+        title: "Browser Not Supported",
+        description: "Web Push Notifications are not supported in this browser.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsPushSubscribing(true);
+
+    try {
+      if (enabled) {
+        const result = await subscribeToPushNotifications(VAPID_PUBLIC_KEY);
+
+        if (!result.success) {
+          if (result.permission === "denied") {
+            toast({
+              title: "Notifications Blocked",
+              description:
+                "Notifications are blocked in your browser settings. Please click the lock or settings icon next to the URL to allow notifications.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Subscription Failed",
+              description: result.error || "Failed to register browser push subscription.",
+              variant: "destructive",
+            });
+          }
+          setIsPushSubscribing(false);
+          return;
+        }
+
+        const subJson = result.subscription?.toJSON();
+        const endpoint = result.subscription?.endpoint;
+        const p256dh = subJson?.keys?.p256dh;
+        const authKey = subJson?.keys?.auth;
+
+        if (endpoint && p256dh && authKey) {
+          const { error: upsertErr } = await supabase.from("push_subscriptions").upsert(
+            {
+              user_id: user.id,
+              endpoint,
+              p256dh,
+              auth: authKey,
+            },
+            { onConflict: "user_id,endpoint" }
+          );
+
+          if (upsertErr) {
+            console.error("[WebPush] Failed to store push subscription in database:", upsertErr);
+          }
+        }
+
+        // Update profile preferences
+        const { error: profileUpdateErr } = await supabase
+          .from("profiles")
+          .update({ push_notifications_enabled: true })
+          .eq("id", user.id);
+
+        if (profileUpdateErr) throw profileUpdateErr;
+
+        queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
+        toast({
+          title: "Push Notifications Enabled",
+          description: "You will receive real-time browser alerts for swap offers and messages.",
+        });
+      } else {
+        // Unsubscribe from browser PushManager
+        await unsubscribeFromPushNotifications();
+
+        // Remove subscriptions from database
+        await supabase.from("push_subscriptions").delete().eq("user_id", user.id);
+
+        // Update profile preferences
+        const { error: profileUpdateErr } = await supabase
+          .from("profiles")
+          .update({ push_notifications_enabled: false })
+          .eq("id", user.id);
+
+        if (profileUpdateErr) throw profileUpdateErr;
+
+        queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
+        toast({
+          title: "Push Notifications Disabled",
+          description: "You will not receive browser push notifications for swap activity.",
+        });
+      }
+    } catch (err: any) {
+      console.error("[WebPush] Toggle push notification error:", err);
+      toast({
+        title: "Update Failed",
+        description: err.message || "Failed to update push notification preferences.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPushSubscribing(false);
+    }
+  };
 
   // Instant notification preference toggle mutation
   const toggleNotificationsMutation = useMutation({
@@ -313,6 +439,7 @@ const Profile = () => {
           bio: bio.trim() || null,
           avatar_url: updatedAvatarUrl,
           email_notifications_enabled: emailNotificationsEnabled,
+          push_notifications_enabled: pushNotificationsEnabled,
         })
         .eq("id", user.id)
         .select()
@@ -708,29 +835,75 @@ const Profile = () => {
             </p>
           </div>
 
-          <Card className="border-border bg-card shadow-sm">
-            <CardContent className="p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="email-notifications-toggle" className="text-base font-semibold cursor-pointer">
-                    Email me about new messages and swap activity
-                  </Label>
-                  <p className="text-xs sm:text-sm text-muted-foreground max-w-xl leading-relaxed">
-                    Receive email notifications for incoming swap offers, trade updates, direct chat messages, and reviews when you're away from the platform.
-                  </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Email Notifications Card */}
+            <Card className="border-border bg-card shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex flex-col justify-between h-full gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-5 w-5 text-primary" />
+                      <Label htmlFor="email-notifications-toggle" className="text-base font-semibold cursor-pointer">
+                        Email Notifications
+                      </Label>
+                    </div>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      Receive email alerts for incoming swap proposals, trade acceptances, direct messages, and reviews.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                    <span className="text-xs text-muted-foreground">
+                      {profile?.email_notifications_enabled ?? true ? "Active" : "Disabled"}
+                    </span>
+                    <Switch
+                      id="email-notifications-toggle"
+                      checked={profile?.email_notifications_enabled ?? true}
+                      disabled={toggleNotificationsMutation.isPending}
+                      onCheckedChange={(checked) => {
+                        toggleNotificationsMutation.mutate(checked);
+                      }}
+                    />
+                  </div>
                 </div>
-                <Switch
-                  id="email-notifications-toggle"
-                  checked={profile?.email_notifications_enabled ?? true}
-                  disabled={toggleNotificationsMutation.isPending}
-                  onCheckedChange={(checked) => {
-                    toggleNotificationsMutation.mutate(checked);
-                  }}
-                  className="self-start sm:self-auto flex-shrink-0"
-                />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            {/* Browser Push Notifications Card */}
+            <Card className="border-border bg-card shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex flex-col justify-between h-full gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <BellRing className="h-5 w-5 text-primary" />
+                      <Label htmlFor="push-notifications-toggle" className="text-base font-semibold cursor-pointer">
+                        Browser Push Notifications
+                      </Label>
+                    </div>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      Get instant desktop or mobile browser alerts in real time even when this website tab isn't open.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                    <span className="text-xs text-muted-foreground">
+                      {isPushSubscribing
+                        ? "Configuring..."
+                        : profile?.push_notifications_enabled ?? true
+                        ? "Active"
+                        : "Disabled"}
+                    </span>
+                    <Switch
+                      id="push-notifications-toggle"
+                      checked={profile?.push_notifications_enabled ?? true}
+                      disabled={isPushSubscribing}
+                      onCheckedChange={(checked) => {
+                        handleTogglePushNotifications(checked);
+                      }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Blocked Members Section */}
@@ -913,6 +1086,24 @@ const Profile = () => {
                 id="dialog-email-notifications-toggle"
                 checked={emailNotificationsEnabled}
                 onCheckedChange={setEmailNotificationsEnabled}
+                className="flex-shrink-0"
+              />
+            </div>
+
+            {/* Push Notifications Toggle */}
+            <div className="flex items-center justify-between p-3.5 bg-muted/40 border border-border/60 rounded-xl gap-3">
+              <div className="space-y-0.5 min-w-0">
+                <Label htmlFor="dialog-push-notifications-toggle" className="text-sm font-semibold cursor-pointer block">
+                  Push Notifications
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Receive browser notifications for new swaps and chats
+                </p>
+              </div>
+              <Switch
+                id="dialog-push-notifications-toggle"
+                checked={pushNotificationsEnabled}
+                onCheckedChange={setPushNotificationsEnabled}
                 className="flex-shrink-0"
               />
             </div>
