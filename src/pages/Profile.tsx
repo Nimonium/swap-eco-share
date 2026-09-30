@@ -52,9 +52,7 @@ import {
   isPushNotificationSupported,
 } from "@/utils/pushNotifications";
 
-const VAPID_PUBLIC_KEY =
-  import.meta.env.VITE_VAPID_PUBLIC_KEY ||
-  "BCiMqSA-8LMPUyfANcW7vk8IFzTkc30qhqe_-N0-ocVJpbBFLlqD9xuhek7cc8WIsWRl89RFzB28IsYFu6XIS3g";
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
 const Profile = () => {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
@@ -256,6 +254,15 @@ const Profile = () => {
       toast({
         title: "Browser Not Supported",
         description: "Web Push Notifications are not supported in this browser.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (enabled && !VAPID_PUBLIC_KEY) {
+      toast({
+        title: "Configuration Required",
+        description: "VITE_VAPID_PUBLIC_KEY is not configured in your environment.",
         variant: "destructive",
       });
       return;
