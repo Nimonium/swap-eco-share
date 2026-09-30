@@ -518,6 +518,109 @@ export type Database = {
           }
         ]
       }
+      disputes: {
+        Row: {
+          id: string
+          swap_id: string
+          filed_by: string
+          against_user_id: string
+          category: "item_not_as_described" | "item_damaged" | "no_show" | "non_delivery" | "other"
+          description: string
+          status: "open" | "under_review" | "resolved_favor_filer" | "resolved_favor_other" | "resolved_mutual" | "closed_no_action"
+          resolution_notes: string | null
+          created_at: string
+          resolved_at: string | null
+        }
+        Insert: {
+          id?: string
+          swap_id: string
+          filed_by: string
+          against_user_id: string
+          category: "item_not_as_described" | "item_damaged" | "no_show" | "non_delivery" | "other"
+          description: string
+          status?: "open" | "under_review" | "resolved_favor_filer" | "resolved_favor_other" | "resolved_mutual" | "closed_no_action"
+          resolution_notes?: string | null
+          created_at?: string
+          resolved_at?: string | null
+        }
+        Update: {
+          id?: string
+          swap_id?: string
+          filed_by?: string
+          against_user_id?: string
+          category?: "item_not_as_described" | "item_damaged" | "no_show" | "non_delivery" | "other"
+          description?: string
+          status?: "open" | "under_review" | "resolved_favor_filer" | "resolved_favor_other" | "resolved_mutual" | "closed_no_action"
+          resolution_notes?: string | null
+          created_at?: string
+          resolved_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disputes_swap_id_fkey"
+            columns: ["swap_id"]
+            isOneToOne: false
+            referencedRelation: "swaps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disputes_filed_by_fkey"
+            columns: ["filed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disputes_against_user_id_fkey"
+            columns: ["against_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      dispute_evidence: {
+        Row: {
+          id: string
+          dispute_id: string
+          uploaded_by: string
+          storage_path: string
+          media_type: "image" | "video" | "document"
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          dispute_id: string
+          uploaded_by: string
+          storage_path: string
+          media_type?: "image" | "video" | "document"
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          dispute_id?: string
+          uploaded_by?: string
+          storage_path?: string
+          media_type?: "image" | "video" | "document"
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispute_evidence_dispute_id_fkey"
+            columns: ["dispute_id"]
+            isOneToOne: false
+            referencedRelation: "disputes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispute_evidence_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

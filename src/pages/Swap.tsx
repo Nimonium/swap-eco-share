@@ -24,7 +24,12 @@ import {
   AlertTriangle,
   RotateCcw,
   Star,
+  ShieldAlert,
+  ShieldCheck,
+  Scale,
 } from "lucide-react";
+import { DisputeDialog, DISPUTE_CATEGORY_LABELS, DisputeCategory } from "@/components/DisputeDialog";
+import { DisputeDetailsModal, DISPUTE_STATUS_CONFIG, DisputeStatus } from "@/components/DisputeDetailsModal";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +61,12 @@ const Swap = () => {
   // Real-time Chat Panel State
   const [selectedSwapForChat, setSelectedSwapForChat] = useState<any | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+
+  // Dispute Center State
+  const [selectedSwapForDispute, setSelectedSwapForDispute] = useState<any | null>(null);
+  const [isDisputeDialogOpen, setIsDisputeDialogOpen] = useState(false);
+  const [selectedDisputeForDetails, setSelectedDisputeForDetails] = useState<any | null>(null);
+  const [isDisputeDetailsOpen, setIsDisputeDetailsOpen] = useState(false);
 
   // Fetch unread messages count for current user
   const { data: unreadMessages = [] } = useQuery({
@@ -240,6 +251,59 @@ const Swap = () => {
     enabled: !!user,
   });
 
+  // Fetch disputes involving current user
+  const { data: userDisputes = [], isLoading: disputesLoading } = useQuery({
+    queryKey: ["disputes", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("disputes")
+        .select(`
+          id,
+          swap_id,
+          filed_by,
+          against_user_id,
+          category,
+          description,
+          status,
+          resolution_notes,
+          created_at,
+          resolved_at,
+          filer:profiles!filed_by(full_name, avatar_url),
+          against_user:profiles!against_user_id(full_name, avatar_url),
+          swap:swaps!swap_id(
+            id,
+            status,
+            item:items!item_id(title, condition, price_value, item_media(storage_path)),
+            offered_item:items!offered_item_id(title, condition, price_value, item_media(storage_path))
+          )
+        `)
+        .or(`filed_by.eq.${user.id},against_user_id.eq.${user.id}`)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.warn("[EcoSwapSquare] Disputes fetch:", error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const disputesBySwapId = useMemo(() => {
+    const map: Record<string, any> = {};
+    userDisputes.forEach((d: any) => {
+      map[d.swap_id] = d;
+    });
+    return map;
+  }, [userDisputes]);
+
+  const activeDisputesCount = useMemo(() => {
+    return userDisputes.filter(
+      (d: any) => d.status === "open" || d.status === "under_review"
+    ).length;
+  }, [userDisputes]);
+
   // Submit Review Mutation
   const submitReviewMutation = useMutation({
     mutationFn: async ({
@@ -372,14 +436,146 @@ const Swap = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-xl grid-cols-4">
             <TabsTrigger value="active">Active Swaps</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
+            <TabsTrigger value="disputes" className="relative gap-1.5">
+              <span>Disputes</span>
+              {activeDisputesCount > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="h-4 min-w-[16px] px-1 text-[9px] font-bold rounded-full"
+                >
+                  {activeDisputesCount}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="all">All Swaps</TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab} className="space-y-6 mt-6">
-            {isError ? (
+            {activeTab === "disputes" ? (
+              /* Disputes List View */
+              disputesLoading ? (
+                <div className="py-20 flex flex-col items-center justify-center text-muted-foreground gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p>Loading dispute cases...</p>
+                </div>
+              ) : userDisputes.length === 0 ? (
+                <Card className="border-border border-dashed">
+                  <CardContent className="py-16 text-center space-y-4">
+                    <ShieldCheck className="h-14 w-14 text-emerald-500 mx-auto" />
+                    <div>
+                      <h3 className="text-lg font-semibold mb-1">No Trade Disputes</h3>
+                      <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                        You don't have any active or past trade disputes. If an accepted or completed exchange ever encounters an issue, you can file a case directly from your swap card.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {userDisputes.map((dispute: any) => {
+                    const isFiler = dispute.filed_by === user?.id;
+                    const statusConfig =
+                      DISPUTE_STATUS_CONFIG[dispute.status as DisputeStatus] ||
+                      DISPUTE_STATUS_CONFIG.open;
+                    const categoryLabel =
+                      DISPUTE_CATEGORY_LABELS[dispute.category as DisputeCategory] ||
+                      dispute.category;
+
+                    const targetItem = dispute.swap?.item;
+                    const targetMedia = targetItem?.item_media?.[0];
+                    const targetImageUrl = getMediaUrl(targetMedia?.storage_path);
+
+                    const partnerName = isFiler
+                      ? dispute.against_user?.full_name || "Swap Partner"
+                      : dispute.filer?.full_name || "Swap Partner";
+
+                    return (
+                      <Card
+                        key={dispute.id}
+                        className="border-border hover:shadow-md transition-shadow overflow-hidden bg-card"
+                      >
+                        <CardHeader className="bg-muted/30 pb-3 border-b border-border/50">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={statusConfig.variant}
+                                className={statusConfig.className}
+                              >
+                                {statusConfig.label}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {isFiler ? "Filed by you" : `Filed against trade`}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                Case #{dispute.id.slice(0, 8)}
+                              </span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDistanceToNow(new Date(dispute.created_at), { addSuffix: true })}
+                            </span>
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="p-4 sm:p-6 space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 bg-muted rounded-lg overflow-hidden flex-shrink-0 border border-border">
+                                <img
+                                  src={targetImageUrl}
+                                  alt={targetItem?.title || "Item"}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-sm line-clamp-1">
+                                  {targetItem?.title || "Swap Item"}
+                                </h4>
+                                <p className="text-xs text-muted-foreground">
+                                  Partner: <strong className="text-foreground">{partnerName}</strong> • Category: <strong className="text-foreground">{categoryLabel}</strong>
+                                </p>
+                              </div>
+                            </div>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 self-start sm:self-auto text-xs"
+                              onClick={() => {
+                                setSelectedDisputeForDetails(dispute);
+                                setIsDisputeDetailsOpen(true);
+                              }}
+                            >
+                              <ShieldAlert className="h-3.5 w-3.5 text-primary" />
+                              View Dispute & Evidence
+                            </Button>
+                          </div>
+
+                          <div className="p-3 bg-muted/40 rounded-lg text-xs leading-relaxed text-muted-foreground border border-border/40">
+                            <p className="line-clamp-2 italic">
+                              "{dispute.description}"
+                            </p>
+                          </div>
+
+                          {dispute.resolution_notes && (
+                            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs space-y-1">
+                              <p className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                <CheckCircle className="h-3.5 w-3.5" /> Resolution Notes:
+                              </p>
+                              <p className="text-foreground/90 line-clamp-2">
+                                {dispute.resolution_notes}
+                              </p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )
+            ) : isError ? (
               <Card className="border-destructive/30 bg-destructive/5">
                 <CardContent className="py-12 text-center space-y-4">
                   <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
@@ -645,6 +841,37 @@ const Swap = () => {
                             )
                           )}
 
+                          {/* Dispute Action for Accepted or Completed Swaps */}
+                          {(swap.status === "accepted" || swap.status === "completed") && (
+                            disputesBySwapId[swap.id] ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 text-xs font-medium shadow-xs"
+                                onClick={() => {
+                                  setSelectedDisputeForDetails(disputesBySwapId[swap.id]);
+                                  setIsDisputeDetailsOpen(true);
+                                }}
+                              >
+                                <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
+                                <span>View Dispute</span>
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1.5"
+                                onClick={() => {
+                                  setSelectedSwapForDispute(swap);
+                                  setIsDisputeDialogOpen(true);
+                                }}
+                              >
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                <span>Report Problem</span>
+                              </Button>
+                            )
+                          )}
+
                           {swap.status !== "declined" && (
                             <Button
                               variant="outline"
@@ -810,6 +1037,28 @@ const Swap = () => {
             setSelectedSwapForChat(null);
           }}
           currentUserId={user?.id}
+        />
+
+        {/* File Dispute Dialog */}
+        <DisputeDialog
+          isOpen={isDisputeDialogOpen}
+          onClose={() => {
+            setIsDisputeDialogOpen(false);
+            setSelectedSwapForDispute(null);
+          }}
+          swap={selectedSwapForDispute}
+          currentUserId={user?.id || ""}
+        />
+
+        {/* Dispute Case & Evidence Details Modal */}
+        <DisputeDetailsModal
+          isOpen={isDisputeDetailsOpen}
+          onClose={() => {
+            setIsDisputeDetailsOpen(false);
+            setSelectedDisputeForDetails(null);
+          }}
+          dispute={selectedDisputeForDetails}
+          currentUserId={user?.id || ""}
         />
       </main>
 
