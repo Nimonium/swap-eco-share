@@ -245,8 +245,14 @@ Deno.serve(async (req: Request) => {
           deliveredCount++;
         } catch (pushErr: any) {
           console.error(`[Push Send Error] Endpoint ${sub.endpoint.slice(0, 30)}...:`, pushErr.statusCode || pushErr.message);
-          // If subscription is expired, unsubscribed, or gone (HTTP 404 or 410)
-          if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
+          // If subscription is expired, unregistered, or rejected due to key mismatch (HTTP 400, 401, 403, 404, 410)
+          if (
+            pushErr.statusCode === 410 ||
+            pushErr.statusCode === 404 ||
+            pushErr.statusCode === 401 ||
+            pushErr.statusCode === 403 ||
+            pushErr.statusCode === 400
+          ) {
             expiredSubIds.push(sub.id);
           }
         }

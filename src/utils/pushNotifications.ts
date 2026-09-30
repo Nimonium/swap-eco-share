@@ -80,11 +80,35 @@ export async function subscribeToPushNotifications(vapidPublicKey: string): Prom
     });
     await navigator.serviceWorker.ready;
 
-    // 3. Check for existing subscription or create new one
+    // 3. Check for existing subscription or create new one with active VAPID key
+    const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
     let subscription = await registration.pushManager.getSubscription();
 
+    if (subscription) {
+      // Check if existing browser subscription was created with a different VAPID key
+      let keyMismatch = false;
+      if (subscription.options && subscription.options.applicationServerKey) {
+        const existingKey = new Uint8Array(subscription.options.applicationServerKey);
+        if (existingKey.length !== convertedVapidKey.length) {
+          keyMismatch = true;
+        } else {
+          for (let i = 0; i < existingKey.length; i++) {
+            if (existingKey[i] !== convertedVapidKey[i]) {
+              keyMismatch = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (keyMismatch) {
+        console.log("[WebPush] VAPID key rotated. Unsubscribing stale browser subscription...");
+        await subscription.unsubscribe();
+        subscription = null;
+      }
+    }
+
     if (!subscription) {
-      const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: convertedVapidKey,
