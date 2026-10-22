@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useWishlist } from "@/hooks/useWishlist";
 import { useToast } from "@/hooks/use-toast";
 import { getMediaUrl } from "@/lib/storage";
 import Header from "@/components/Header";
@@ -62,6 +63,7 @@ import {
   DollarSign,
   Star,
   Repeat,
+  Heart,
   ShieldCheck,
   Video,
   Loader2,
@@ -103,6 +105,7 @@ const ItemDetail = () => {
   const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isSaved, toggleSave } = useWishlist();
 
   // Swap dialog state
   const [isSwapDialogOpen, setIsSwapDialogOpen] = useState(false);
@@ -581,6 +584,22 @@ const ItemDetail = () => {
             Back to Browse
           </Link>
           <div className="flex items-center gap-2">
+            {!isOwner && (
+              <Button
+                variant={isSaved(item.id) ? "default" : "outline"}
+                size="sm"
+                onClick={() => toggleSave(item.id, item.title)}
+                className={`gap-1.5 transition-all ${
+                  isSaved(item.id)
+                    ? "bg-rose-500 hover:bg-rose-600 text-white border-rose-500 shadow-sm"
+                    : "hover:text-rose-500 hover:border-rose-300"
+                }`}
+                aria-label={isSaved(item.id) ? "Remove from wishlist" : "Save to wishlist"}
+              >
+                <Heart className={`h-4 w-4 ${isSaved(item.id) ? "fill-current" : ""}`} />
+                <span>{isSaved(item.id) ? "Saved" : "Save Item"}</span>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -777,24 +796,40 @@ const ItemDetail = () => {
                       </p>
                     </div>
                   ) : (
-                    <Button
-                      variant="eco"
-                      size="lg"
-                      className="w-full text-base font-semibold gap-2 shadow-md"
-                      onClick={() => {
-                        if (!isAuthenticated) {
-                          toast({
-                            title: "Sign in required",
-                            description: "Please sign in to propose a swap.",
-                          });
-                          navigate("/auth");
-                        } else {
-                          setIsSwapDialogOpen(true);
-                        }
-                      }}
-                    >
-                      <Repeat className="h-5 w-5" /> Propose Swap
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="eco"
+                        size="lg"
+                        className="flex-1 text-base font-semibold gap-2 shadow-md"
+                        onClick={() => {
+                          if (!isAuthenticated) {
+                            toast({
+                              title: "Sign in required",
+                              description: "Please sign in to propose a swap.",
+                            });
+                            navigate("/auth");
+                          } else {
+                            setIsSwapDialogOpen(true);
+                          }
+                        }}
+                      >
+                        <Repeat className="h-5 w-5" /> Propose Swap
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        className={`px-4 border-border transition-all ${
+                          isSaved(item.id)
+                            ? "text-rose-500 border-rose-400 bg-rose-50 dark:bg-rose-950/30"
+                            : "hover:text-rose-500 hover:border-rose-300"
+                        }`}
+                        onClick={() => toggleSave(item.id, item.title)}
+                        title={isSaved(item.id) ? "Remove from Wishlist" : "Save to Wishlist"}
+                        aria-label={isSaved(item.id) ? "Remove from wishlist" : "Save to wishlist"}
+                      >
+                        <Heart className={`h-5 w-5 ${isSaved(item.id) ? "fill-current" : ""}`} />
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardContent>

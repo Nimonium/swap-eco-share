@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useWishlist } from "@/hooks/useWishlist";
 import { getMediaUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -86,7 +87,7 @@ const ProductGrid = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState("All Items");
-  const [savedItems, setSavedItems] = useState<Record<string, boolean>>({});
+  const { isSaved, toggleSave } = useWishlist();
 
   // Query user's blocked users list
   const { data: userBlocks = [] } = useQuery({
@@ -174,11 +175,7 @@ const ProductGrid = () => {
     return cat === target || cat?.includes(target);
   });
 
-  const toggleSave = (itemId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setSavedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
-  };
+
 
   return (
     <section className="py-20 lg:py-28 bg-background relative">
@@ -266,7 +263,9 @@ const ProductGrid = () => {
               const isCurated = !!product.is_curated;
               const firstMedia = product.item_media?.[0];
               const imageUrl = isCurated ? product.image : getMediaUrl(firstMedia?.storage_path);
-              const isSaved = !!savedItems[product.id];
+              const isItemSaved = isSaved(product.id);
+              const isOwner = !!user && user.id === product.owner_id;
+              const canSave = !isCurated && !isOwner;
               const owner = product.profiles;
               const ownerName = isCurated ? product.owner_name : (owner?.full_name || "Community Member");
               const city = isCurated ? product.city : (product.city || owner?.city || "Local Community");
@@ -298,18 +297,20 @@ const ProductGrid = () => {
                       />
                       
                       {/* Heart Save Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => toggleSave(product.id, e)}
-                        className={`absolute top-2.5 right-2.5 p-2 rounded-full backdrop-blur-md transition-all ${
-                          isSaved 
-                            ? "bg-red-500/90 text-white shadow-md" 
-                            : "bg-black/40 hover:bg-black/60 text-white"
-                        }`}
-                        aria-label="Save Item"
-                      >
-                        <Heart className={`h-4 w-4 ${isSaved ? "fill-current" : ""}`} />
-                      </button>
+                      {canSave && (
+                        <button
+                          type="button"
+                          onClick={(e) => toggleSave(product.id, product.title, e)}
+                          className={`absolute top-2.5 right-2.5 p-2 rounded-full backdrop-blur-md transition-all ${
+                            isItemSaved 
+                              ? "bg-rose-500/90 text-white shadow-md hover:bg-rose-600" 
+                              : "bg-black/40 hover:bg-black/60 text-white"
+                          }`}
+                          aria-label={isItemSaved ? "Remove from wishlist" : "Save to wishlist"}
+                        >
+                          <Heart className={`h-4 w-4 ${isItemSaved ? "fill-current" : ""}`} />
+                        </button>
+                      )}
 
                       {/* Condition Badge */}
                       <Badge className="absolute top-2.5 left-2.5 bg-black/75 backdrop-blur-md text-white border-0 text-[11px] font-medium">

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Search, User, Menu, PlusCircle, LogOut } from "lucide-react";
+import { Search, User, Menu, PlusCircle, LogOut, Heart } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -127,6 +127,12 @@ const Header = () => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
+                    <Link to="/saved" className="cursor-pointer">
+                      <Heart className="mr-2 h-4 w-4 text-primary" />
+                      <span>Saved Items</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link to="/list-item" className="cursor-pointer">
                       <PlusCircle className="mr-2 h-4 w-4 text-primary" />
                       <span>List an Item</span>
@@ -182,9 +188,14 @@ const Header = () => {
                   <Link to="/list-item">List an Item</Link>
                 </DropdownMenuItem>
                 {isAuthenticated && (
-                  <DropdownMenuItem asChild>
-                    <Link to="/profile">My Profile</Link>
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link to="/profile">My Profile</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/saved">Saved Items</Link>
+                    </DropdownMenuItem>
+                  </>
                 )}
                 <DropdownMenuItem asChild>
                   <Link to="/about">About</Link>

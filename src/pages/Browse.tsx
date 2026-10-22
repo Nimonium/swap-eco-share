@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useWishlist } from "@/hooks/useWishlist";
 import { getMediaUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +46,7 @@ const Browse = () => {
   const [aiQuery, setAiQuery] = useState("");
   const [aiResults, setAiResults] = useState<any[]>([]);
   const [isAiSearching, setIsAiSearching] = useState(false);
-  const [savedItems, setSavedItems] = useState<Record<string, boolean>>({});
+  const { isSaved, toggleSave } = useWishlist();
 
   // Query user's blocked users list
   const { data: userBlocks = [] } = useQuery({
@@ -168,11 +169,7 @@ const Browse = () => {
     setIsAiSearching(false);
   };
 
-  const toggleSave = (itemId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setSavedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
-  };
+
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -308,7 +305,8 @@ const Browse = () => {
                   const media = item.item_media || [];
                   const firstPhoto = media.find((m: any) => m.media_type === "image" || !m.media_type);
                   const imageUrl = getMediaUrl(firstPhoto?.storage_path);
-                  const isSaved = !!savedItems[item.id];
+                  const isItemSaved = isSaved(item.id);
+                  const isOwner = !!user && user.id === item.owner_id;
                   const owner = item.profiles;
 
                   return (
@@ -330,16 +328,21 @@ const Browse = () => {
                             />
                           </div>
 
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={(e) => toggleSave(item.id, e)}
-                            className={`absolute top-2 right-2 bg-black/40 hover:bg-black/60 rounded-full ${
-                              isSaved ? "text-red-500" : "text-white"
-                            }`}
-                          >
-                            <Heart className={`h-4 w-4 ${isSaved ? "fill-current" : ""}`} />
-                          </Button>
+                          {!isOwner && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => toggleSave(item.id, item.title, e)}
+                              className={`absolute top-2 right-2 rounded-full backdrop-blur-md transition-all ${
+                                isItemSaved
+                                  ? "bg-rose-500/90 hover:bg-rose-600 text-white shadow-md"
+                                  : "bg-black/40 hover:bg-black/60 text-white"
+                              }`}
+                              aria-label={isItemSaved ? "Remove from wishlist" : "Save to wishlist"}
+                            >
+                              <Heart className={`h-4 w-4 ${isItemSaved ? "fill-current" : ""}`} />
+                            </Button>
+                          )}
 
                           <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground">
                             {item.condition}
