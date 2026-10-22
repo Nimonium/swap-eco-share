@@ -18,74 +18,15 @@ import {
   AlertTriangle, 
   RotateCcw,
   Sparkles,
-  ArrowRight,
-  Leaf,
-  ShieldCheck,
-  Flame
+  ArrowRight
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const CATEGORIES = ["All Items", "Electronics", "Fashion", "Instruments", "Crafts", "Audio", "Home & Garden"];
 
-// Fallback showcase items with real photos to guarantee the UI is breathtaking even on a brand-new DB
-const CURATED_SHOWCASE_ITEMS = [
-  {
-    id: "showcase-1",
-    title: "Fujifilm X-T5 Mirrorless Body & 35mm f/1.4",
-    category: "Electronics",
-    condition: "Like New",
-    price_value: 1250,
-    city: "Munich, Central Plaza",
-    image: "/showcase/vintage_camera.jpg",
-    carbon_saved: "24.5 kg CO₂",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-    owner_name: "Elena Rostova",
-    is_curated: true,
-  },
-  {
-    id: "showcase-2",
-    title: "Veja Campo Sustainable Canvas Sneakers",
-    category: "Fashion",
-    condition: "Mint in Box",
-    price_value: 155,
-    city: "Berlin, Kreuzberg",
-    image: "/showcase/eco_sneakers.jpg",
-    carbon_saved: "8.2 kg CO₂",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
-    owner_name: "Marcus Vance",
-    is_curated: true,
-  },
-  {
-    id: "showcase-3",
-    title: "Wireless ANC Over-Ear Studio Headphones",
-    category: "Audio",
-    condition: "Excellent",
-    price_value: 290,
-    city: "Vienna, Westbahnhof",
-    image: "/showcase/premium_headphones.jpg",
-    carbon_saved: "14.8 kg CO₂",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    owner_name: "David Lin",
-    is_curated: true,
-  },
-  {
-    id: "showcase-4",
-    title: "Crafted Cedar Top Acoustic Folk Guitar",
-    category: "Instruments",
-    condition: "Very Good",
-    price_value: 420,
-    city: "Hamburg, Altona",
-    image: "/showcase/acoustic_guitar.jpg",
-    carbon_saved: "32.0 kg CO₂",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 36).toISOString(),
-    owner_name: "Sophie Martin",
-    is_curated: true,
-  },
-];
-
 const ProductGrid = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState("All Items");
   const { isSaved, toggleSave } = useWishlist();
 
@@ -113,6 +54,7 @@ const ProductGrid = () => {
     [userBlocks]
   );
 
+  // Fetch real published items from Supabase, newest first
   const {
     data: dbItems = [],
     isLoading,
@@ -142,7 +84,7 @@ const ProductGrid = () => {
         )
         .eq("status", "published")
         .order("created_at", { ascending: false })
-        .limit(9);
+        .limit(12);
 
       if (error) {
         console.error("[EcoSwapSquare Supabase Error] Failed to fetch home items:", error);
@@ -158,24 +100,20 @@ const ProductGrid = () => {
     }
   }, [isError, error]);
 
-  // Combine DB items + curated showcase if DB has few items
-  const combinedItems = useMemo(() => {
-    const validDbItems = dbItems.filter((item: any) => !blockedUserIds.has(item.owner_id));
-    if (validDbItems.length >= 4) {
-      return validDbItems;
-    }
-    // Blend DB items with curated items so the catalog is always rich and eye-catching
-    return [...validDbItems, ...CURATED_SHOWCASE_ITEMS];
+  // Filter out items owned by blocked users
+  const validDbItems = useMemo(() => {
+    return dbItems.filter((item: any) => !blockedUserIds.has(item.owner_id));
   }, [dbItems, blockedUserIds]);
 
-  const filteredItems = combinedItems.filter((item: any) => {
-    if (selectedCategory === "All Items") return true;
-    const cat = item.category?.toLowerCase();
-    const target = selectedCategory.toLowerCase();
-    return cat === target || cat?.includes(target);
-  });
-
-
+  // Filter items by selected category
+  const filteredItems = useMemo(() => {
+    return validDbItems.filter((item: any) => {
+      if (selectedCategory === "All Items") return true;
+      const cat = item.category?.toLowerCase();
+      const target = selectedCategory.toLowerCase();
+      return cat === target || cat?.includes(target);
+    });
+  }, [validDbItems, selectedCategory]);
 
   return (
     <section className="py-20 lg:py-28 bg-background relative">
@@ -240,48 +178,47 @@ const ProductGrid = () => {
             </CardContent>
           </Card>
         ) : filteredItems.length === 0 ? (
+          /* Empty State when no real items match */
           <Card className="border-border border-dashed">
             <CardContent className="py-16 text-center space-y-4">
               <Package className="h-12 w-12 text-muted-foreground mx-auto" />
               <div>
-                <h3 className="text-lg font-semibold mb-1">No items found in this category</h3>
+                <h3 className="text-lg font-semibold mb-1">
+                  {selectedCategory === "All Items"
+                    ? "No items listed yet"
+                    : `No items found in ${selectedCategory}`}
+                </h3>
                 <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                  Be the first to list an item under {selectedCategory}!
+                  {selectedCategory === "All Items"
+                    ? "Be the first to list an item in our circular community!"
+                    : `Be the first to list an item under ${selectedCategory}!`}
                 </p>
               </div>
-              <Link to="/list-item">
+              <Link to={isAuthenticated ? "/list-item" : "/auth"}>
                 <Button variant="eco" className="gap-2">
                   <PlusCircle className="h-4 w-4" />
-                  List an Item
+                  List the First Item
                 </Button>
               </Link>
             </CardContent>
           </Card>
         ) : (
+          /* Grid of Real Published Database Items */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredItems.map((product: any) => {
-              const isCurated = !!product.is_curated;
               const firstMedia = product.item_media?.[0];
-              const imageUrl = isCurated ? product.image : getMediaUrl(firstMedia?.storage_path);
+              const imageUrl = getMediaUrl(firstMedia?.storage_path);
               const isItemSaved = isSaved(product.id);
               const isOwner = !!user && user.id === product.owner_id;
-              const canSave = !isCurated && !isOwner;
+              const canSave = !isOwner;
               const owner = product.profiles;
-              const ownerName = isCurated ? product.owner_name : (owner?.full_name || "Community Member");
-              const city = isCurated ? product.city : (product.city || owner?.city || "Local Community");
-              const carbonSaved = isCurated ? product.carbon_saved : "14.2 kg CO₂";
+              const city = product.city || owner?.city || "Local Community";
 
               return (
                 <Card
                   key={product.id}
                   className="group hover:shadow-xl hover:border-primary/40 transition-all duration-300 border-border cursor-pointer overflow-hidden flex flex-col bg-card"
-                  onClick={() => {
-                    if (isCurated) {
-                      navigate("/browse");
-                    } else {
-                      navigate(`/item/${product.id}`);
-                    }
-                  }}
+                  onClick={() => navigate(`/item/${product.id}`)}
                 >
                   <CardContent className="p-0 flex-1 flex flex-col">
                     
@@ -316,12 +253,6 @@ const ProductGrid = () => {
                       <Badge className="absolute top-2.5 left-2.5 bg-black/75 backdrop-blur-md text-white border-0 text-[11px] font-medium">
                         {product.condition || "Pre-Loved"}
                       </Badge>
-
-                      {/* Carbon Offset Tag */}
-                      <div className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md bg-emerald-950/80 backdrop-blur-md border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold flex items-center gap-1">
-                        <Leaf className="h-3 w-3 text-emerald-400" />
-                        <span>Saves {carbonSaved}</span>
-                      </div>
                     </div>
 
                     {/* Details Area */}
@@ -343,7 +274,7 @@ const ProductGrid = () => {
                         </h3>
                       </div>
 
-                      {/* Owner and Location */}
+                      {/* Location and Relative Time */}
                       <div className="pt-2 border-t border-border/60 text-xs text-muted-foreground flex items-center justify-between">
                         <div className="flex items-center gap-1 truncate max-w-[140px]">
                           <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -365,11 +296,7 @@ const ProductGrid = () => {
                       className="w-full font-semibold text-xs h-9 gap-1.5"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isCurated) {
-                          navigate("/browse");
-                        } else {
-                          navigate(`/item/${product.id}`);
-                        }
+                        navigate(`/item/${product.id}`);
                       }}
                     >
                       Propose Swap
@@ -386,7 +313,7 @@ const ProductGrid = () => {
         <div className="text-center mt-14">
           <Link to="/browse">
             <Button size="lg" variant="outline" className="border-border hover:bg-muted font-bold px-8 rounded-xl gap-2 shadow-sm">
-              Explore All 2,400+ Active Swaps
+              Explore All Active Swaps
               <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
