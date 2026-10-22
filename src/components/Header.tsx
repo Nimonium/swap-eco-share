@@ -49,23 +49,7 @@ const Header = () => {
   };
 
   return (
-    <>
-      {/* Top Live Community Bar */}
-      <div className="bg-emerald-950 text-emerald-300 text-[11px] font-medium py-1.5 px-4 border-b border-emerald-900/50">
-        <div className="container mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="hidden sm:inline text-emerald-200">Live Circular Marketplace:</span>
-            <span>12,400+ items saved from landfills across 50 cities</span>
-          </div>
-          <div className="hidden md:flex items-center gap-4 text-[11px] text-emerald-400">
-            <span>✓ Verified Safe Meetups</span>
-            <span>✓ Zero Seller Fees</span>
-          </div>
-        </div>
-      </div>
-
-      <header className="bg-background/95 backdrop-blur-md border-b border-border sticky top-0 z-50">
+    <header className="bg-background/95 backdrop-blur-md border-b border-border sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           {/* Logo */}
@@ -216,7 +200,6 @@ const Header = () => {
         </div>
       </div>
     </header>
-    </>
   );
 };
 

@@ -41,7 +41,7 @@ const STEPS = [
     preview: {
       badge: "Step 3: Handover",
       image: "/showcase/community_swapping.jpg",
-      subtext: "Exchange completed at Central Square • ★★★★★ rating unlocked",
+      subtext: "Exchange completed at community meetup spot • Mutual condition confirmed",
     }
   }
 ];

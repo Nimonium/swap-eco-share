@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Users, Sparkles, ShieldCheck, Leaf, Heart } from "lucide-react";
+import { ArrowRight, ShieldCheck, Leaf, Heart } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const CallToAction = () => {
@@ -12,30 +12,6 @@ const CallToAction = () => {
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto text-center space-y-8">
           
-          {/* Top Pill with Avatar Stack */}
-          <div className="inline-flex items-center gap-3 bg-white/10 border border-white/15 rounded-full px-5 py-2 backdrop-blur-md shadow-lg">
-            <div className="flex -space-x-2 overflow-hidden">
-              <img
-                className="inline-block h-7 w-7 rounded-full ring-2 ring-emerald-400 object-cover"
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=80"
-                alt="Member"
-              />
-              <img
-                className="inline-block h-7 w-7 rounded-full ring-2 ring-emerald-400 object-cover"
-                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&auto=format&fit=crop&q=80"
-                alt="Member"
-              />
-              <img
-                className="inline-block h-7 w-7 rounded-full ring-2 ring-emerald-400 object-cover"
-                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&auto=format&fit=crop&q=80"
-                alt="Member"
-              />
-            </div>
-            <span className="text-xs sm:text-sm font-medium text-emerald-200">
-              Join 5,800+ conscious members trading daily
-            </span>
-          </div>
-
           {/* Heading */}
           <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.15]">
             Ready to Clear Clutter & <br />
@@ -83,26 +59,6 @@ const CallToAction = () => {
               <Heart className="h-4 w-4 text-emerald-400" />
               100% Circular community
             </span>
-          </div>
-
-          {/* Platform Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-12 border-t border-slate-800/80 max-w-3xl mx-auto">
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-              <div className="text-3xl font-black text-white">12,400+</div>
-              <div className="text-xs text-slate-400 mt-1">Total Items Swapped</div>
-            </div>
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-              <div className="text-3xl font-black text-white">5,800+</div>
-              <div className="text-xs text-slate-400 mt-1">Active Eco Members</div>
-            </div>
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-              <div className="text-3xl font-black text-white">50+</div>
-              <div className="text-xs text-slate-400 mt-1">Metro Exchange Hubs</div>
-            </div>
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-              <div className="text-3xl font-black text-white">28.5 T</div>
-              <div className="text-xs text-slate-400 mt-1">CO₂ Diverted from Air</div>
-            </div>
           </div>
 
         </div>

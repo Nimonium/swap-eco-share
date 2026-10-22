@@ -1,18 +1,12 @@
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Recycle, Users, Globe, Leaf, Heart, Award, ArrowRight } from "lucide-react";
+import { Recycle, Users, Heart, Award, ArrowRight } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 const About = () => {
-  const stats = [
-    { label: "Items Swapped", value: "10,000+", icon: Recycle },
-    { label: "Active Users", value: "5,000+", icon: Users },
-    { label: "Cities", value: "50+", icon: Globe },
-    { label: "CO₂ Saved", value: "2.5 tons", icon: Leaf }
-  ];
-
   const values = [
     {
       icon: Recycle,
@@ -36,24 +30,6 @@ const About = () => {
     }
   ];
 
-  const team = [
-    {
-      name: "Alex Chen",
-      role: "Founder & CEO",
-      description: "Environmental engineer passionate about reducing waste through technology."
-    },
-    {
-      name: "Sarah Kim",
-      role: "Head of Community",
-      description: "Building connections and ensuring every user has a great swapping experience."
-    },
-    {
-      name: "Mike Rodriguez",
-      role: "Lead Developer",
-      description: "Creating the technology that makes seamless swapping possible."
-    }
-  ];
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -72,27 +48,12 @@ const About = () => {
             who want to exchange items, creating a sustainable marketplace that benefits both 
             people and the planet.
           </p>
-          <Button variant="swap" size="lg">
-            Join Our Mission
-            <ArrowRight className="ml-2 h-4 w-4" />
+          <Button asChild variant="swap" size="lg">
+            <Link to="/auth">
+              Join Our Mission
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
           </Button>
-        </section>
-
-        {/* Stats Section */}
-        <section className="bg-muted/30 py-16">
-          <div className="container mx-auto px-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              {stats.map((stat, index) => (
-                <Card key={index} className="text-center border-0 shadow-md">
-                  <CardContent className="p-6">
-                    <stat.icon className="h-8 w-8 text-primary mx-auto mb-3" />
-                    <div className="text-3xl font-bold text-foreground mb-1">{stat.value}</div>
-                    <div className="text-muted-foreground">{stat.label}</div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
         </section>
 
         {/* Mission Section */}
@@ -105,13 +66,9 @@ const About = () => {
                 is to create a sustainable economy where resources are shared, not wasted.
               </p>
               <p className="text-lg text-muted-foreground mb-8">
-                By facilitating item exchanges, we're not just helping people save money and 
-                declutter their lives – we're actively reducing consumption, minimizing waste, 
-                and building stronger communities.
+                By facilitating item exchanges, we're not just helping people declutter their lives
+                – we're actively reducing consumption, minimizing waste, and building stronger communities.
               </p>
-              <Button variant="outline" size="lg">
-                Learn More About Our Impact
-              </Button>
             </div>
             <div className="relative">
               <div className="relative w-full h-96 rounded-3xl overflow-hidden shadow-2xl border border-border">
@@ -156,30 +113,6 @@ const About = () => {
           </div>
         </section>
 
-        {/* Team Section */}
-        <section className="container mx-auto px-4 py-16">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-foreground mb-4">Meet Our Team</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Passionate individuals working to make sustainable sharing accessible to everyone
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {team.map((member, index) => (
-              <Card key={index} className="text-center border-0 shadow-md">
-                <CardContent className="p-8">
-                  <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-success/20 rounded-full mx-auto mb-4 flex items-center justify-center">
-                    <Users className="h-8 w-8 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-foreground mb-1">{member.name}</h3>
-                  <Badge variant="secondary" className="mb-3">{member.role}</Badge>
-                  <p className="text-muted-foreground">{member.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-
         {/* CTA Section */}
         <section className="bg-gradient-to-r from-primary to-success py-16">
           <div className="container mx-auto px-4 text-center">
@@ -187,15 +120,15 @@ const About = () => {
               Ready to Start Swapping?
             </h2>
             <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-              Join thousands of users who are already making a positive impact on the environment 
-              while getting amazing items they love.
+              Join fellow members who are making a positive impact on the environment 
+              while getting items they love.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button variant="secondary" size="lg">
-                Sign Up Now
+              <Button asChild variant="secondary" size="lg">
+                <Link to="/auth">Sign Up Now</Link>
               </Button>
-              <Button variant="outline" size="lg" className="bg-transparent border-white text-white hover:bg-white hover:text-primary">
-                Browse Items
+              <Button asChild variant="outline" size="lg" className="bg-transparent border-white text-white hover:bg-white hover:text-primary">
+                <Link to="/browse">Browse Items</Link>
               </Button>
             </div>
           </div>

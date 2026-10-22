@@ -4,7 +4,6 @@ import VideoShowcase from "@/components/VideoShowcase";
 import HowItWorks from "@/components/HowItWorks";
 import ProductGrid from "@/components/ProductGrid";
 import ImpactCalculator from "@/components/ImpactCalculator";
-import CommunityStories from "@/components/CommunityStories";
 import CallToAction from "@/components/CallToAction";
 import Footer from "@/components/Footer";
 
@@ -18,7 +17,6 @@ const Index = () => {
         <HowItWorks />
         <ProductGrid />
         <ImpactCalculator />
-        <CommunityStories />
         <CallToAction />
       </main>
       <Footer />

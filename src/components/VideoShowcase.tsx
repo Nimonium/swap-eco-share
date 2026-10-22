@@ -9,10 +9,7 @@ import {
   RotateCcw, 
   Sparkles, 
   CheckCircle, 
-  MapPin, 
   ShieldCheck, 
-  Leaf,
-  Layers,
   ArrowRight
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -32,36 +29,36 @@ interface StoryTab {
 const STORIES: StoryTab[] = [
   {
     id: "story-1",
-    title: "Eco Handover in the City",
-    subtitle: "Watch community members exchange gear in a local green park plaza",
+    title: "In-Person Circular Exchange",
+    subtitle: "Demonstrating a direct item handover in a public community space",
     type: "video",
     src: "/showcase/eco_story.mp4",
     poster: "/showcase/community_swapping.jpg",
-    duration: "0:45 min",
-    badge: "Featured Story",
-    story: "Maya and Leo met at Central Park Eco Square to trade a plant cutting for a vintage camera lens. Safe, sunny, and zero carbon footprint.",
+    duration: "Video Overview",
+    badge: "Demonstration",
+    story: "Members coordinate a convenient public meetup to inspect items together and complete a zero-waste trade.",
   },
   {
     id: "story-2",
-    title: "The Creative Studio Trade",
-    subtitle: "How a guitar found music again and headphones powered a podcast",
+    title: "Musical Instruments & Audio",
+    subtitle: "Giving instruments and audio gear a second life",
     type: "photo",
     src: "/showcase/acoustic_guitar.jpg",
     poster: "/showcase/acoustic_guitar.jpg",
-    duration: "Photo Story",
+    duration: "Gallery Example",
     badge: "Sound & Audio",
-    story: "Sophie hadn't played her acoustic guitar in 3 years. She swapped it with David for studio wireless headphones. Now both instruments are making sounds daily.",
+    story: "Quality instruments find new musicians rather than sitting unused in storage.",
   },
   {
     id: "story-3",
-    title: "Vintage Lens Revival",
-    subtitle: "Passing on high-performance optics to the next generation",
+    title: "Optics & Camera Equipment",
+    subtitle: "Passing gear on to the next creator",
     type: "photo",
     src: "/showcase/vintage_camera.jpg",
     poster: "/showcase/vintage_camera.jpg",
-    duration: "Photo Story",
+    duration: "Gallery Example",
     badge: "Tech & Gear",
-    story: "Instead of collecting dust in a drawer, this mirrorless Fujifilm body went straight to a local student photographer in exchange for sustainable lifestyle gear.",
+    story: "Photography equipment stays in active circulation through direct member-to-member exchanges.",
   },
 ];
 
@@ -107,13 +104,13 @@ const VideoShowcase = () => {
         <div className="text-center max-w-3xl mx-auto mb-14 space-y-4">
           <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 px-3.5 py-1 text-xs">
             <Sparkles className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
-            Visual Stories & Community Experience
+            Exchange Demonstration
           </Badge>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">
-            See How Simple Swapping Really Is
+            See How Simple Swapping Can Be
           </h2>
           <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
-            From discovering matching gear to secure in-person handovers, watch how our members keep quality goods in circulation.
+            From listing items to arranging local handovers, explore how items stay in circulation without unnecessary waste.
           </p>
         </div>
 
@@ -142,7 +139,7 @@ const VideoShowcase = () => {
                   {/* Top overlay badge */}
                   <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
                     <Badge className="bg-slate-900/80 backdrop-blur-md text-emerald-300 border-emerald-500/30">
-                      ● Live Demo Video
+                      ● Video Demonstration
                     </Badge>
                   </div>
 
@@ -193,13 +190,13 @@ const VideoShowcase = () => {
                       </Button>
                       
                       <span className="text-xs text-slate-300 font-mono">
-                        {isPlaying ? "Playing Story" : "Paused"}
+                        {isPlaying ? "Playing Video" : "Paused"}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-400 hidden sm:inline">
-                        1080p HD • Eco Community Video
+                        Demonstration Video
                       </span>
                     </div>
                   </div>
@@ -235,7 +232,7 @@ const VideoShowcase = () => {
                   </div>
                   <Link to="/browse" className="shrink-0">
                     <Button className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold gap-2 rounded-xl">
-                      Find Similar Swaps
+                      Browse Items
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
@@ -321,15 +318,15 @@ const VideoShowcase = () => {
               <ul className="text-xs text-slate-300 space-y-2">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  <span>Public safe-exchange meetup spots in 50+ cities</span>
+                  <span>Recommended public meetup spots for secure handovers</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  <span>Verified member reviews and mutual condition sign-off</span>
+                  <span>Member reviews and mutual condition inspection</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  <span>100% free swap credits with zero transaction fees</span>
+                  <span>Direct member-to-member exchanges with zero transaction fees</span>
                 </li>
               </ul>
             </div>
